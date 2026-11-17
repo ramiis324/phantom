@@ -1,0 +1,9 @@
+name = "rcdn-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[observability]
+enabled = true
+
+[vars]
+DEFAULT_TARGET = "https://www.youtube.com"

@@ -1,0 +1,6 @@
+name = "wisp-relay"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+WISP_SECRET = "ae260652d91198f9bcef3dc13b7186937d20a8ffe9981d3a"

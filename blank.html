@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Phantom</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #111;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: clamp(30px, 10vw, 50px);
+            height: 100%;
+            background-color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            --indicator-top: 0px;
+        }
+
+        .sidebar::after {
+            content: "";
+            position: absolute;
+            top: var(--indicator-top);
+            left: 0;
+            width: 3px;
+            height: 24px;
+            border-radius: 0 3px 3px 0;
+            background-color: #fff;
+            pointer-events: none;
+            transition: top 0.25s ease;
+        }
+
+        .logo {
+            width: 75%;
+            height: 50px;
+            border: none;
+            filter: invert(100%);
+        }
+
+        button, a.sbtn {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            background-color: transparent;
+            border: none;
+            color: #BDBDBD;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            text-decoration: none;
+        }
+
+        button:hover, a.sbtn:hover { color: #fff; }
+
+        button.active, a.sbtn.active { color: #fff; }
+
+        .divider {
+            width: 80%;
+            height: 1px;
+            background-color: #333;
+            margin: 10px 0;
+        }
+
+        .mode-toggles {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #2c2c2c;
+            margin-bottom: 10px;
+            border-radius: 45vh;
+            border: 1px solid #444;
+        }
+
+        .day, .device, .night {
+            width: 100%;
+            height: 35px;
+            background-color: transparent;
+            border: none;
+            color: #BDBDBD;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            scale: 0.8;
+        }
+
+        .main {
+            margin-left: clamp(30px, 10vw, 50px);
+            padding: 20px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar" id="site-rail">
+        <img src="ricon.svg" alt="" class="logo">
+        <div class="divider"></div>
+        <button class="home" id="tab-home"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+        <a class="btn sbtn" id="tab-games" href="index.html"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-swords-icon lucide-swords"><path d="m13 19 6-6"/><path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5"/><path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m5 14 4 4"/><path d="m5 21-2-2"/><path d="M7.5 16.5 4 20"/></svg></a>
+        <a class="btn sbtn" id="tab-movies" href="index.html"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-popcorn-icon lucide-popcorn"><path d="M18 8a2 2 0 0 0 0-4 2 2 0 0 0-4 0 2 2 0 0 0-4 0 2 2 0 0 0-4 0 2 2 0 0 0 0 4"/><path d="M10 22 9 8"/><path d="m14 22 1-14"/><path d="M20 8c.5 0 .9.4.8 1l-2.6 12c-.1.5-.7 1-1.2 1H7c-.6 0-1.1-.4-1.2-1L3.2 9c-.1-.6.3-1 .8-1Z"/></svg></a>
+        <button class="apps active" id="tab-apps"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-smartphone-icon lucide-smartphone"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></button>
+        <a class="btn sbtn" id="tab-explore" href="index.html"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-compass-icon lucide-compass"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/></svg></a>
+        <a class="btn sbtn" id="tab-settings" href="index.html"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bolt-icon lucide-bolt"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><circle cx="12" cy="12" r="4"/></svg></a>
+        <div class="mode-toggles">
+            <button class="day"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun-icon lucide-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+            <button class="device"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv-minimal-icon lucide-tv-minimal"><path d="M7 21h10"/><rect width="20" height="14" x="2" y="3" rx="2"/></svg></button>
+            <button class="night"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon-icon lucide-moon"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg></button>
+        </div>
+    </div>
+    <div class="main"></div>
+    <script>
+        (function () {
+            var rail = document.getElementById("site-rail");
+            var active = rail.querySelector("#tab-apps");
+            var controls = rail.querySelectorAll("button, a.sbtn");
+            function placeIndicator() {
+                if (!active) return;
+                var t = active.offsetTop + (active.offsetHeight - 24) / 2;
+                rail.style.setProperty("--indicator-top", t + "px");
+            }
+            controls.forEach(function (control) {
+                control.addEventListener("mouseenter", function () {
+                    controls.forEach(function (item) { item.classList.remove("active"); });
+                    control.classList.add("active");
+                    var t = control.offsetTop + (control.offsetHeight - 24) / 2;
+                    rail.style.setProperty("--indicator-top", t + "px");
+                });
+            });
+            rail.addEventListener("mouseleave", function () {
+                controls.forEach(function (item) { item.classList.remove("active"); });
+                active.classList.add("active");
+                placeIndicator();
+            });
+            placeIndicator();
+            window.addEventListener("load", placeIndicator);
+        })();
+    </script>
+</body>
+</html>

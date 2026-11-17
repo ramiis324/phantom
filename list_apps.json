@@ -1,0 +1,14 @@
+[
+	{
+		"appIndex": "apps/desmos/index.html",
+		"appName": "Desmos"
+	},
+	{
+		"appIndex": "apps/mathway/index.html",
+		"appName": "Mathway"
+	},
+	{
+		"appIndex": "apps/test/index.html",
+		"appName": "name"
+	}
+]

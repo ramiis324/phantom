@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+		<meta http-equiv="Pragma" content="no-cache" />
+		<meta http-equiv="Expires" content="0" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Phantom</title>
+	<link rel="icon" type="image/png" href="favicon.png?v=1" />
+	<link href="https://fonts.cdnfonts.com/css/google-sans" rel="stylesheet" />
+	<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+	<script src="supabase-config.js?v=3"></script>
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+
+		:root {
+			--ink: #333;
+			--ink-active: #000;
+			--field-h: 64px;
+
+			/* Real credit card proportions: 85.60mm x 53.98mm (ISO/IEC 7810 ID-1).
+			   Change to 1.333 for 4:3 if landscape 3:4 was meant literally. */
+			--card-w: clamp(300px, 31vw, 430px);
+			--card-ar: 1.586;
+			--card-radius: 3.7%;
+		}
+
+		html, body { height: 100%; }
+
+		body {
+			background: #fff;
+			font-family: "Product Sans", "Inter", Arial, sans-serif;
+			color: var(--ink);
+			overflow: hidden;
+			-webkit-font-smoothing: antialiased;
+		}
+
+		/* --- Page title ---
+		   Rides in with the card's rise (0 -> 1s), so it reads as part of the
+		   same entrance. Kept small and light so it doesn't compete with the
+		   card. Fixed, never intercepts pointer events.
+		   z-index is raised above the stage: the card's travel peaks near the
+		   top of the viewport on narrow screens, where .card-wrap creates its
+		   own stacking context (perspective) and would otherwise paint over
+		   this text. */
+		.page-title {
+			position: fixed;
+			top: clamp(20px, 4vh, 40px);
+			left: 0;
+			right: 0;
+			margin: 0;
+			text-align: center;
+			font-size: clamp(14px, 1.6vw, 17px);
+			font-weight: 500;
+			letter-spacing: 0.16em;
+			text-transform: uppercase;
+			color: var(--ink);
+			opacity: 0;
+			pointer-events: none;
+			z-index: 10;
+			/* Opaque backdrop so the card can't show through the glyphs. */
+			text-shadow: 0 0 10px #fff, 0 0 20px #fff;
+			animation: titleIn 1400ms cubic-bezier(0.22, 0.68, 0.24, 1) 240ms both;
+		}
+
+		@keyframes titleIn {
+			from { opacity: 0; transform: translateY(-10px); }
+			to { opacity: 0.82; transform: translateY(0); }
+		}
+
+		/* --- Two halves: card left, field right --- */
+		.stage {
+			position: fixed;
+			inset: 0;
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+		}
+
+		.half {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		/* --- Card shell: owns the entrance choreography + perspective ---
+		   Timeline (4.6s total):
+		     0.0s -> 1.0s  rise from bottom-center + zoom into screen center
+		     1.0s -> 3.0s  dwell in the center, facing forward
+		     3.0s -> 4.6s  travel into its resting slot in the left half
+		   The card's resting slot is the left-half center, so every offset is
+		   measured from there: +25vw is screen center, +52vh is the bottom edge.
+		   No rotation anywhere in the entrance — it faces forward the whole time. */
+		.card-wrap {
+			position: relative;
+			width: var(--card-w);
+			aspect-ratio: var(--card-ar);
+			perspective: 1200px;
+			animation: floatIn 4600ms linear both;
+		}
+
+		@keyframes floatIn {
+			/* --- rise + zoom, 0s -> 1s (21.739%) --- */
+			0% {
+				transform: translate3d(25vw, 52vh, 0) scale(0.46);
+				opacity: 0;
+				animation-timing-function: cubic-bezier(0.22, 0.68, 0.24, 1);
+			}
+			4% { opacity: 1; }
+			21.739% {
+				transform: translate3d(25vw, 0, 0) scale(1.08);
+				opacity: 1;
+				animation-timing-function: ease-in-out;
+			}
+
+			/* --- dwell, 1s -> 3s (21.739% -> 65.217%) --- */
+			43.478% {
+				transform: translate3d(25vw, -10px, 0) scale(1.1);
+				animation-timing-function: ease-in-out;
+			}
+			65.217% {
+				transform: translate3d(25vw, 0, 0) scale(1.08);
+				animation-timing-function: cubic-bezier(0.5, 0, 0.2, 1);
+			}
+
+			/* --- travel to resting slot, 3s -> 4.6s --- */
+			100% {
+				transform: translate3d(0, 0, 0) scale(1);
+				opacity: 1;
+			}
+		}
+
+		/* --- Card face: owns cursor tilt --- */
+		.card {
+			position: absolute;
+			inset: 0;
+			border-radius: var(--card-radius);
+			transform-style: preserve-3d;
+			transform: rotateX(0deg) rotateY(0deg);
+			will-change: transform;
+		}
+
+		/* physical thickness, only visible once tilted */
+		.card-edge {
+			position: absolute;
+			inset: 0;
+			border-radius: inherit;
+			transform: translateZ(-4px);
+			background: linear-gradient(180deg, #a7aeba 0%, #79818f 42%, #5c626d 100%);
+			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+		}
+
+		.card-face {
+			position: absolute;
+			inset: 0;
+			border-radius: inherit;
+			overflow: hidden;
+			transform: translateZ(0);
+			background: #cfd3da;
+			box-shadow:
+				0 1px 2px rgba(16, 18, 24, 0.08),
+				0 6px 14px rgba(16, 18, 24, 0.12),
+				0 18px 38px rgba(16, 18, 24, 0.15),
+				inset 0 1px 0 rgba(255, 255, 255, 0.55),
+				inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+		}
+
+		#card-grain {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			display: block;
+		}
+
+		.card-sheen,
+		.card-glare,
+		.card-sweep {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+		}
+
+		/* brushed metal */
+		.card-sheen {
+			background:
+				linear-gradient(155deg,
+					rgba(255, 255, 255, 0.72) 0%,
+					rgba(255, 255, 255, 0.18) 26%,
+					rgba(0, 0, 0, 0.10) 52%,
+					rgba(255, 255, 255, 0.26) 74%,
+					rgba(0, 0, 0, 0.20) 100%);
+			mix-blend-mode: overlay;
+		}
+
+		/* cursor spotlight */
+		.card-glare {
+			--gx: 50%;
+			--gy: 50%;
+			background: radial-gradient(46% 62% at var(--gx) var(--gy),
+				rgba(255, 255, 255, 0.62) 0%,
+				rgba(255, 255, 255, 0.20) 42%,
+				rgba(255, 255, 255, 0) 72%);
+			mix-blend-mode: soft-light;
+			opacity: 0;
+			transition: opacity 0.45s ease;
+		}
+
+		.card-wrap.live .card-glare { opacity: 1; }
+
+		/* periodic specular sweep */
+		.card-sweep {
+			background: linear-gradient(105deg,
+				rgba(255, 255, 255, 0) 34%,
+				rgba(255, 255, 255, 0.5) 47%,
+				rgba(255, 255, 255, 0) 60%);
+			transform: translateX(-120%);
+			animation: sweep 5.2s ease-in-out 3.2s infinite;
+		}
+
+		@keyframes sweep {
+			0%, 60% { transform: translateX(-120%); }
+			100% { transform: translateX(120%); }
+		}
+
+		/* --- Form ---
+		   NB: no opacity/animation on .field itself. A delayed entrance here
+		   would also apply to the step that is revealed later, re-fading it
+		   from 0 long after it had already appeared. The one-time entrance is
+		   scoped to .intro on the initially visible step instead. */
+		.field {
+			display: flex;
+			flex-direction: column;
+			gap: 20px;
+			width: min(88%, 400px);
+		}
+
+		/* one-time entrance, applied to the first step only and removed on
+		   animationend so it can never replay */
+		.step.intro {
+			opacity: 0;
+			animation: fieldIn 1000ms cubic-bezier(0.16, 0.84, 0.28, 1) 4900ms forwards;
+		}
+
+		@keyframes fieldIn {
+			from { opacity: 0; transform: translateY(14px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+
+		.field label {
+			font-size: clamp(28px, 3.3vw, 42px);
+			font-weight: 500;
+			color: var(--ink);
+			letter-spacing: -0.015em;
+			line-height: 1.1;
+		}
+
+		.field input {
+			width: 100%;
+			height: var(--field-h);
+			padding: 0 20px;
+			font: inherit;
+			font-size: 18px;
+			color: var(--ink-active);
+			background: transparent;
+			border: 1px solid var(--ink);
+			border-radius: 16px;
+			outline: none;
+			transition: border-color 0.22s ease, box-shadow 0.22s ease;
+		}
+
+		.field input::placeholder { color: rgba(51, 51, 51, 0.32); }
+
+		.field input:focus {
+			border-color: var(--ink-active);
+			box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
+		}
+
+		/* --- Engraved name, top-left of the card ---
+		   A pressed-in look: dark text with a light highlight below it,
+		   the inverse of the raised sheen used on the face. */
+		.card-engrave {
+			position: absolute;
+			top: 8%;
+			left: 7%;
+			right: 7%;
+			font-size: clamp(15px, 2.1vw, 21px);
+			font-weight: 600;
+			letter-spacing: 0.04em;
+			color: rgba(38, 42, 50, 0.82);
+			text-shadow:
+				0 1px 0 rgba(255, 255, 255, 0.55),
+				0 -1px 1px rgba(0, 0, 0, 0.18);
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			pointer-events: none;
+			opacity: 0;
+			transform: translateY(-2px);
+			transition: opacity 0.28s ease, transform 0.28s ease;
+		}
+
+		.card-engrave.on {
+			opacity: 1;
+			transform: translateY(0);
+		}
+
+		/* --- Steps --- */
+		.step { position: relative; }
+
+		.step[hidden] { display: none; }
+
+		.step.enter { animation: stepIn 620ms cubic-bezier(0.16, 0.84, 0.28, 1) both; }
+		.step.leave { animation: stepOut 320ms ease both; }
+
+		@keyframes stepIn {
+			from { opacity: 0; transform: translateY(18px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+
+		@keyframes stepOut {
+			from { opacity: 1; transform: translateY(0); }
+			to { opacity: 0; transform: translateY(-14px); }
+		}
+
+		/* --- Messages --- */
+		.msg {
+			min-height: 20px;
+			font-size: 14px;
+			line-height: 1.4;
+			color: #c0392b;
+			opacity: 0;
+			transition: opacity 0.2s ease;
+		}
+
+		.msg.show { opacity: 1; }
+		.msg.ok { color: #1e7a46; }
+
+		/* --- Buttons --- */
+		.btn {
+			font: inherit;
+			font-size: 15px;
+			font-weight: 500;
+			height: 46px;
+			padding: 0 22px;
+			border-radius: 12px;
+			border: 1px solid var(--ink);
+			background: transparent;
+			color: var(--ink);
+			cursor: pointer;
+			transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+		}
+
+		.btn-primary { align-self: flex-start; background: var(--ink); color: #fff; }
+		.btn-primary:hover { background: var(--ink-active); border-color: var(--ink-active); }
+
+		.btn-ghost { align-self: flex-start; }
+		.btn-ghost:hover { background: rgba(51, 51, 51, 0.06); }
+
+		.btn:disabled {
+			opacity: 0.4;
+			cursor: not-allowed;
+			background: transparent;
+			color: var(--ink);
+		}
+
+		.btn:focus-visible {
+			outline: 2px solid var(--ink-active);
+			outline-offset: 3px;
+		}
+
+		.btn-row {
+			display: flex;
+			gap: 12px;
+		}
+
+		/* --- Avatar picker --- */
+		.avatar-circle {
+			position: relative;
+			align-self: flex-start;
+			width: 112px;
+			height: 112px;
+			border-radius: 50%;
+			border: 1px solid var(--ink);
+			background: rgba(51, 51, 51, 0.04);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			overflow: hidden;
+			color: var(--ink);
+			transition: border-color 0.2s ease, box-shadow 0.2s ease;
+		}
+
+		.avatar-circle:focus-within,
+		.avatar-circle.has-image { border-color: var(--ink-active); }
+
+		.avatar-circle.has-image { box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06); }
+
+		.avatar-circle svg { width: 44px; height: 44px; }
+
+		.avatar-circle img {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		/* --- Stacked on narrow screens ---
+		   There is no left/right split here, so the card's resting slot is
+		   already horizontally centered: only the vertical travel is needed. */
+		@media (max-width: 760px) {
+			.stage { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+			.half-left { align-items: center; }
+			.half-right { padding-bottom: 12vh; }
+			.card-wrap { --card-w: min(78vw, 360px); }
+			.field { width: min(84vw, 400px); }
+
+			@keyframes floatIn {
+				0% {
+					transform: translate3d(0, 42vh, 0) scale(0.46);
+					opacity: 0;
+					animation-timing-function: cubic-bezier(0.22, 0.68, 0.24, 1);
+				}
+				4% { opacity: 1; }
+				21.739% {
+					transform: translate3d(0, -9vh, 0) scale(1.06);
+					opacity: 1;
+					animation-timing-function: ease-in-out;
+				}
+				43.478% {
+					transform: translate3d(0, calc(-9vh - 8px), 0) scale(1.08);
+					animation-timing-function: ease-in-out;
+				}
+				65.217% {
+					transform: translate3d(0, -9vh, 0) scale(1.06);
+					animation-timing-function: cubic-bezier(0.5, 0, 0.2, 1);
+				}
+				100% {
+					transform: translate3d(0, 0, 0) scale(1);
+					opacity: 1;
+				}
+			}
+		}
+
+		/* Google is a full-width row with its own mark; email is the
+		   quieter alternative under it. */
+		.btn-provider {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 10px;
+			width: 100%;
+			height: 52px;
+			background: #fff;
+			border: 1px solid rgba(0, 0, 0, 0.18);
+			box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+		}
+		.btn-provider:hover { background: #f6f6f6; }
+
+		/* Same footprint as the Google row: stacked choices, icon row first. */
+		#email-btn, #anon-btn { display: inline-flex; align-items: center; gap: 8px;
+			width: 100%;
+			height: 52px;
+			justify-content: center;
+			border-color: rgba(0, 0, 0, 0.18);
+		}
+		.signin-hint {
+			margin: -4px 0 0;
+			font-size: 12px;
+			line-height: 1.5;
+			color: rgba(51, 51, 51, 0.62);
+		}
+		.provider-icon { display: inline-flex; }
+		.provider-icon svg { display: block; }
+
+		.code-sub {
+			margin: -10px 0 0;
+			font-size: 14px;
+			line-height: 1.4;
+			color: rgba(51, 51, 51, 0.7);
+		}
+		#code {
+			letter-spacing: 0.5em;
+			text-align: center;
+			font-size: 24px;
+		}
+		@media (prefers-reduced-motion: reduce) {
+			.card-wrap, .field, .page-title { animation-duration: 1ms; animation-delay: 0ms; }
+			.card-sweep { animation: none; }
+			/* the entrance wait only makes sense with the card animation */
+			.step.intro { animation: none; opacity: 1; }
+		}
+	</style>
+</head>
+<body>
+	<h1 class="page-title">Account Creation</h1>
+	<div class="stage">
+		<div class="half half-left">
+			<div class="card-wrap" id="card-wrap">
+				<div class="card" id="card">
+					<div class="card-edge"></div>
+					<div class="card-face" id="card-face">
+						<canvas id="card-grain"></canvas>
+						<div class="card-sheen"></div>
+						<div class="card-glare" id="card-glare"></div>
+						<div class="card-sweep"></div>
+						<div class="card-engrave" id="card-engrave" aria-hidden="true"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="half half-right">
+						<!-- Step 1: how to sign in -->
+			<div class="field step" id="step-choice">
+				<label>Welcome:</label>
+				<button type="button" class="btn btn-provider" id="google-btn">
+					<span class="provider-icon" aria-hidden="true">
+						<svg width="18" height="18" viewBox="0 0 48 48" focusable="false">
+							<path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z"/>
+							<path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-2.8-.4-4.1H24v8.4h12.5c-.3 2.1-1.6 5.2-4.7 7.3l7.7 6c4.5-4.2 6.6-10.3 6.6-17.6z"/>
+							<path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.7 24c0-1.6.3-3.2.8-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/>
+							<path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.8-5.8l-7.7-6c-2.1 1.4-4.9 2.4-8.1 2.4-6.3 0-11.6-3.7-13.5-9l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>
+						</svg>
+					</span>
+					Continue with Google
+				</button>
+				<button type="button" class="btn btn-ghost" id="email-btn">
+					<span class="provider-icon" aria-hidden="true">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+							<path d="M2 6L8.91302 9.91697C11.4616 11.361 12.5384 11.361 15.087 9.91697L22 6"></path>
+							<path d="M2.01577 13.4756C2.08114 16.5412 2.11383 18.0739 3.24496 19.2094C4.37608 20.3448 5.95033 20.3843 9.09883 20.4634C11.0393 20.5122 12.9607 20.5122 14.9012 20.4634C18.0497 20.3843 19.6239 20.3448 20.7551 19.2094C21.8862 18.0739 21.9189 16.5412 21.9842 13.4756C22.0053 12.4899 22.0053 11.5101 21.9842 10.5244C21.9189 7.45886 21.8862 5.92609 20.7551 4.79066C19.6239 3.65523 18.0497 3.61568 14.9012 3.53657C12.9607 3.48781 11.0393 3.48781 9.09882 3.53656C5.95033 3.61566 4.37608 3.65521 3.24495 4.79065C2.11382 5.92608 2.08114 7.45885 2.01576 10.5244C1.99474 11.5101 1.99475 12.4899 2.01577 13.4756Z"></path>
+						</svg>
+					</span>
+					Continue with email
+				</button>
+				<button type="button" class="btn btn-ghost" id="anon-btn">Continue without email</button>
+				<p class="msg" id="choice-msg" role="status" aria-live="polite"></p>
+			</div>
+
+			<!-- Step 1b: no email -->
+			<div class="field step" id="step-anon" hidden>
+				<label>Continue without email:</label>
+				<p class="signin-hint">Your account will live only in this browser. Its data can't transfer to other sites, other browsers or devices, and clearing your browser data deletes it.</p>
+				<div class="btn-row">
+					<button type="button" class="btn btn-ghost" id="anon-back">Back</button>
+					<button type="button" class="btn btn-primary" id="anon-continue">Continue</button>
+				</div>
+			</div>
+
+			<!-- Step 2: email -->
+			<div class="field step" id="step-email" hidden>
+				<label for="email">Your email:</label>
+				<input type="email" id="email" name="email" autocomplete="email" spellcheck="false" placeholder=" " aria-describedby="email-msg" />
+				<p class="signin-hint">The code arrives as a plain email from <b>noreply@mail.app.supabase.io</b> - check spam if it isn't there in a minute.</p>
+				<p class="msg" id="email-msg" role="status" aria-live="polite"></p>
+				<div class="btn-row">
+					<button type="button" class="btn btn-ghost" id="email-back">Back</button>
+					<button type="button" class="btn btn-primary" id="email-send">Send code</button>
+				</div>
+			</div>
+
+			<!-- Step 3: six-digit code -->
+			<div class="field step" id="step-code" hidden>
+				<label for="code">Enter the code:</label>
+				<p class="code-sub" id="code-sub">We emailed you a one-time code.</p>
+				<input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" spellcheck="false" placeholder=" " aria-describedby="code-msg" />
+				<p class="msg" id="code-msg" role="status" aria-live="polite"></p>
+				<div class="btn-row">
+					<button type="button" class="btn btn-ghost" id="code-back">Back</button>
+					<button type="button" class="btn btn-primary" id="code-verify">Verify</button>
+				</div>
+			</div>
+
+			<!-- Step 4: name -->
+			<div class="field step" id="step-name" hidden>
+				<label for="username">Pick a name:</label>
+				<input type="text" id="username" name="username" autocomplete="off"
+					spellcheck="false" autofocus
+					maxlength="20" placeholder=" " aria-describedby="name-msg" />
+				<p class="msg" id="name-msg" role="status" aria-live="polite"></p>
+				<button type="button" class="btn btn-primary" id="name-send">Send</button>
+			</div>
+
+			<!-- Step 2: picture -->
+			<div class="field step" id="step-pic" hidden>
+				<label>Choose a picture:</label>
+
+				<div class="avatar-circle" id="avatar-circle" aria-hidden="true">
+					<svg id="avatar-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+						viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+						stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round preview-icon">
+						<circle cx="12" cy="8" r="5" />
+						<path d="M20 21a8 8 0 0 0-16 0" />
+					</svg>
+					<img id="avatar-img" alt="" hidden />
+				</div>
+
+				<input type="file" id="avatar-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+				<button type="button" class="btn btn-ghost" id="avatar-upload">Upload a picture</button>
+
+				<p class="msg" id="pic-msg" role="status" aria-live="polite"></p>
+
+				<div class="btn-row">
+					<button type="button" class="btn btn-ghost" id="pic-back">Back</button>
+					<button type="button" class="btn btn-primary" id="pic-send">Send</button>
+				</div>
+			</div>
+
+			
+		</div>
+	</div>
+
+	<script>
+		/* ============================================================
+		   Grainient surface for the card — dependency-free WebGL2 port
+		   of the exact shader + uniforms used by loader.html
+		   (react-bits component, MIT + Commons Clause).
+		   ============================================================ */
+		(function () {
+			"use strict";
+
+			var VERTEX = `#version 300 es
+in vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+			var FRAGMENT = `#version 300 es
+precision highp float;
+uniform vec2 iResolution;
+uniform float iTime;
+uniform float uTimeSpeed;
+uniform float uColorBalance;
+uniform float uWarpStrength;
+uniform float uWarpFrequency;
+uniform float uWarpSpeed;
+uniform float uWarpAmplitude;
+uniform float uBlendAngle;
+uniform float uBlendSoftness;
+uniform float uRotationAmount;
+uniform float uNoiseScale;
+uniform float uGrainAmount;
+uniform float uGrainScale;
+uniform float uGrainAnimated;
+uniform float uContrast;
+uniform float uGamma;
+uniform float uSaturation;
+uniform vec2 uCenterOffset;
+uniform float uZoom;
+uniform vec3 uColor1;
+uniform vec3 uColor2;
+uniform vec3 uColor3;
+uniform float uLightMode;
+out vec4 fragColor;
+#define S(a,b,t) smoothstep(a,b,t)
+mat2 Rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}
+vec2 hash(vec2 p){p=vec2(dot(p,vec2(2127.1,81.17)),dot(p,vec2(1269.5,283.37)));return fract(sin(p)*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);float n=mix(mix(dot(-1.0+2.0*hash(i+vec2(0.0,0.0)),f-vec2(0.0,0.0)),dot(-1.0+2.0*hash(i+vec2(1.0,0.0)),f-vec2(1.0,0.0)),u.x),mix(dot(-1.0+2.0*hash(i+vec2(0.0,1.0)),f-vec2(0.0,1.0)),dot(-1.0+2.0*hash(i+vec2(1.0,1.0)),f-vec2(1.0,1.0)),u.x),u.y);return 0.5+0.5*n;}
+void mainImage(out vec4 o, vec2 C){
+  float t=iTime*uTimeSpeed;
+  vec2 uv=C/iResolution.xy;
+  float ratio=iResolution.x/iResolution.y;
+  vec2 tuv=uv-0.5+uCenterOffset;
+  tuv/=max(uZoom,0.001);
+
+  float degree=noise(vec2(t*0.1,tuv.x*tuv.y)*uNoiseScale);
+  tuv.y*=1.0/ratio;
+  tuv*=Rot(radians((degree-0.5)*uRotationAmount+180.0));
+  tuv.y*=ratio;
+
+  float frequency=uWarpFrequency;
+  float ws=max(uWarpStrength,0.001);
+  float amplitude=uWarpAmplitude/ws;
+  float warpTime=t*uWarpSpeed;
+  tuv.x+=sin(tuv.y*frequency+warpTime)/amplitude;
+  tuv.y+=sin(tuv.x*(frequency*1.5)+warpTime)/(amplitude*0.5);
+
+  vec3 colLav=uColor1;
+  vec3 colOrg=uColor2;
+  vec3 colDark=uColor3;
+  float b=uColorBalance;
+  float s=max(uBlendSoftness,0.0);
+  mat2 blendRot=Rot(radians(uBlendAngle));
+  float blendX=(tuv*blendRot).x;
+  float edge0=-0.3-b-s;
+  float edge1=0.2-b+s;
+  float v0=0.5-b+s;
+  float v1=-0.3-b-s;
+  vec3 layer1=mix(colDark,colOrg,S(edge0,edge1,blendX));
+  vec3 layer2=mix(colOrg,colLav,S(edge0,edge1,blendX));
+  vec3 col=mix(layer1,layer2,S(v0,v1,tuv.y));
+
+  vec2 grainUv=uv*max(uGrainScale,0.001);
+  if(uGrainAnimated>0.5){grainUv+=vec2(iTime*0.05);}
+  float grain=fract(sin(dot(grainUv,vec2(12.9898,78.233)))*43758.5453);
+  col+=(grain-0.5)*uGrainAmount;
+
+  col=(col-0.5)*uContrast+0.5;
+  float luma=dot(col,vec3(0.2126,0.7152,0.0722));
+  col=mix(vec3(luma),col,uSaturation);
+  col=pow(max(col,0.0),vec3(1.0/max(uGamma,0.001)));
+  col=clamp(col,0.0,1.0);
+  if(uLightMode>0.5){
+    float energy=max(max(col.r,col.g),col.b);
+    vec3 hue=col/max(energy,0.001);
+    float chroma=length(col-vec3(dot(col,vec3(0.333333))));
+    float coverage=clamp(0.12+chroma*1.15+energy*0.18,0.0,0.88);
+    col=mix(vec3(1.0),clamp(hue*0.58+col*0.18,0.0,1.0),coverage);
+  }
+
+  o=vec4(col,1.0);
+}
+void main(){
+  vec4 o=vec4(0.0);
+  mainImage(o,gl_FragCoord.xy);
+  fragColor=o;
+}
+`;
+
+			/* silver / brushed-steel palette so the card reads as metal */
+			var FRAG = {
+				uTimeSpeed: 1.55,
+				uColorBalance: 0.0,
+				uWarpStrength: 1.0,
+				uWarpFrequency: 5.0,
+				uWarpSpeed: 2.5,
+				uWarpAmplitude: 50.0,
+				uBlendAngle: 0.0,
+				uBlendSoftness: 0.05,
+				uRotationAmount: 500.0,
+				uNoiseScale: 2.0,
+				uGrainAmount: 0.1,
+				uGrainScale: 2.0,
+				uGrainAnimated: 0.0,
+				uContrast: 1.5,
+				uGamma: 1.0,
+				uSaturation: 1.0,
+				uZoom: 0.9,
+				uLightMode: 0.0,
+				uColor1: [242 / 255, 243 / 255, 248 / 255],
+				uColor2: [158 / 255, 166 / 255, 180 / 255],
+				uColor3: [86 / 255, 93 / 255, 106 / 255],
+				uCenterOffset: [0, 0]
+			};
+
+			var canvas = document.getElementById("card-grain");
+			var gl = canvas.getContext("webgl2", { alpha: false, antialias: false });
+
+			if (!gl) {
+				document.getElementById("card-face").style.background =
+					"linear-gradient(140deg, #f2f3f8, #9ea6b4 48%, #565d6a)";
+				return;
+			}
+
+			function compile(type, src) {
+				var sh = gl.createShader(type);
+				gl.shaderSource(sh, src);
+				gl.compileShader(sh);
+				if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+					throw new Error(gl.getShaderInfoLog(sh));
+				}
+				return sh;
+			}
+
+			var program = gl.createProgram();
+			gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
+			gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+			gl.linkProgram(program);
+			if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+				console.error("Grainient: " + gl.getProgramInfoLog(program));
+				return;
+			}
+			gl.useProgram(program);
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+			var posLoc = gl.getAttribLocation(program, "position");
+			gl.enableVertexAttribArray(posLoc);
+			gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+			var loc = {};
+			Object.keys(FRAG).forEach(function (key) {
+				var v = FRAG[key];
+				var l = loc[key] = gl.getUniformLocation(program, key);
+				if (Array.isArray(v)) {
+					if (v.length === 2) gl.uniform2fv(l, new Float32Array(v));
+					else if (v.length === 3) gl.uniform3fv(l, new Float32Array(v));
+				} else {
+					gl.uniform1f(l, v);
+				}
+			});
+			loc.iResolution = gl.getUniformLocation(program, "iResolution");
+			loc.iTime = gl.getUniformLocation(program, "iTime");
+
+			function resize() {
+				/* offsetWidth/Height are the untransformed layout box. Using
+				   getBoundingClientRect() here would bake the entrance
+				   animation's scale() into the backing store, then stretch the
+				   grain to fit — which is what made the grain read as coarse
+				   blocks instead of fine per-pixel noise. */
+				var cssW = canvas.offsetWidth;
+				var cssH = canvas.offsetHeight;
+				var dpr = window.devicePixelRatio || 1;
+				/* Supersample above the device ratio: the grain is one hash
+				   value per fragment, so extra fragments are literally extra
+				   grain pixels. Capped so huge displays stay cheap. */
+				var ss = Math.min(Math.max(dpr, 2), 3);
+				var w = Math.max(1, Math.round(cssW * ss));
+				var h = Math.max(1, Math.round(cssH * ss));
+				if (!w || !h) return;
+				if (canvas.width !== w || canvas.height !== h) {
+					canvas.width = w;
+					canvas.height = h;
+				}
+				gl.viewport(0, 0, w, h);
+				gl.uniform2f(loc.iResolution, w, h);
+				gl.drawArrays(gl.TRIANGLES, 0, 3);
+			}
+
+			window.addEventListener("resize", resize);
+			canvas.addEventListener("webglcontextlost", function (e) { e.preventDefault(); });
+
+			/* The card animates scale() for 4.6s, so the final layout size is
+			   not known at load. Re-measure whenever the box settles. */
+			if (window.ResizeObserver) {
+				new ResizeObserver(resize).observe(canvas);
+			}
+
+			var t0 = performance.now();
+			function frame(now) {
+				if (!gl.isContextLost()) {
+					gl.uniform1f(loc.iTime, (now - t0) * 0.001);
+					gl.drawArrays(gl.TRIANGLES, 0, 3);
+				}
+				requestAnimationFrame(frame);
+			}
+
+			function start() {
+				resize();
+				requestAnimationFrame(frame);
+			}
+
+			if (document.readyState === "complete") start();
+			else window.addEventListener("load", start);
+		})();
+
+		/* ============================================================
+		   Cursor reactivity — armed only once the card has settled.
+		   ============================================================ */
+		(function () {
+			"use strict";
+
+			var wrap = document.getElementById("card-wrap");
+			var card = document.getElementById("card");
+			var glare = document.getElementById("card-glare");
+			var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+			var MAX = 9;
+
+			var target = { x: 0, y: 0 };
+			var current = { x: 0, y: 0 };
+			var live = false;
+			var armed = false;
+
+			function settle() {
+				if (armed) return;
+				armed = true;
+				live = true;
+				wrap.classList.add("live");
+				window.addEventListener("pointermove", onMove, { passive: true });
+				window.addEventListener("pointerleave", reset);
+				tick();
+			}
+
+			function onMove(e) {
+				if (!live) return;
+				var r = wrap.getBoundingClientRect();
+				var px = (e.clientX - r.left) / r.width;
+				var py = (e.clientY - r.top) / r.height;
+				target.x = (px - 0.5) * 2 * MAX;
+				target.y = -(py - 0.5) * 2 * MAX;
+				glare.style.setProperty("--gx", (px * 100).toFixed(1) + "%");
+				glare.style.setProperty("--gy", (py * 100).toFixed(1) + "%");
+			}
+
+			function reset() {
+				target.x = 0;
+				target.y = 0;
+				glare.style.setProperty("--gx", "50%");
+				glare.style.setProperty("--gy", "50%");
+			}
+
+			function tick() {
+				current.x += (target.x - current.x) * 0.11;
+				current.y += (target.y - current.y) * 0.11;
+				card.style.transform =
+					"rotateX(" + current.y.toFixed(3) + "deg) rotateY(" + current.x.toFixed(3) + "deg)";
+				requestAnimationFrame(tick);
+			}
+
+			if (reduce) {
+				settle();
+			} else {
+				wrap.addEventListener("animationend", function (e) {
+					if (e.animationName === "floatIn") settle();
+				});
+			}
+		})();
+
+		/* ============================================================
+		   Accounts — name step, picture step, and the Supabase write.
+		   ============================================================ */
+		(function () {
+			"use strict";
+
+			var BUCKET = "avatars";
+			var MAX_NAME = 20;
+			var ALLOWED = /^[A-Za-z0-9.-]+$/;
+
+			var input = document.getElementById("username");
+			var engrave = document.getElementById("card-engrave");
+			var nameMsg = document.getElementById("name-msg");
+			var nameSend = document.getElementById("name-send");
+
+			var stepName = document.getElementById("step-name");
+			var stepPic = document.getElementById("step-pic");
+			var avatarCircle = document.getElementById("avatar-circle");
+			var avatarIcon = document.getElementById("avatar-icon");
+			var avatarImg = document.getElementById("avatar-img");
+			var avatarFile = document.getElementById("avatar-file");
+			var avatarUpload = document.getElementById("avatar-upload");
+			var picMsg = document.getElementById("pic-msg");
+			var picBack = document.getElementById("pic-back");
+			var picSend = document.getElementById("pic-send");
+			var stepChoice = document.getElementById("step-choice");
+var stepEmail = document.getElementById("step-email");
+var stepCode = document.getElementById("step-code");
+var googleBtn = document.getElementById("google-btn");
+var emailBtn = document.getElementById("email-btn");
+var anonBtn = document.getElementById("anon-btn");
+var stepAnon = document.getElementById("step-anon");
+var anonBack = document.getElementById("anon-back");
+var anonContinue = document.getElementById("anon-continue");
+var guestId = "";
+var choiceMsg = document.getElementById("choice-msg");
+var emailInput = document.getElementById("email");
+var emailMsg = document.getElementById("email-msg");
+var emailSend = document.getElementById("email-send");
+var emailBack = document.getElementById("email-back");
+var codeInput = document.getElementById("code");
+var codeMsg = document.getElementById("code-msg");
+var codeSub = document.getElementById("code-sub");
+var codeVerify = document.getElementById("code-verify");
+var codeBack = document.getElementById("code-back");
+
+var authUser = null;
+var pendingEmail = "";
+var resolving = false;
+
+			var sb = null;
+			try {
+				if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase) {
+					sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+				}
+			} catch (e) {
+				console.warn("[accounts] Supabase init failed", e);
+			}
+
+			var chosen = { file: null, preview: null };
+			var busy = false;
+
+			/* ---------- helpers ---------- */
+
+			function setMsg(el, text, ok) {
+				el.textContent = text || "";
+				el.classList.toggle("show", !!text);
+				el.classList.toggle("ok", !!ok);
+			}
+
+			function showStep(next, prev) {
+				if (prev === next) return;
+
+				var swapped = false;
+
+				// Play the leave animation BEFORE hiding, otherwise hidden=true
+				// (display:none) cancels it on the very next frame.
+				prev.classList.remove("enter", "intro");
+				prev.classList.add("leave");
+
+				var swap = function () {
+					// animationend and the timeout fallback can both fire;
+					// only the first one may act.
+					if (swapped) return;
+					swapped = true;
+
+					prev.removeEventListener("animationend", swap);
+					prev.hidden = true;
+					prev.classList.remove("leave");
+					prev.style.opacity = "";
+
+					next.hidden = false;
+					next.classList.remove("leave", "intro");
+					// force reflow so the enter animation restarts
+					void next.offsetWidth;
+					next.classList.add("enter");
+					next.addEventListener("animationend", function done(e) {
+						if (e.animationName !== "stepIn") return;
+						next.removeEventListener("animationend", done);
+						next.classList.remove("enter");
+						next.style.opacity = "";
+					});
+				};
+
+				prev.addEventListener("animationend", function onLeave(e) {
+					if (e.animationName !== "stepOut") return;
+					prev.removeEventListener("animationend", onLeave);
+					swap();
+				});
+				// fallback if animations are disabled
+				setTimeout(swap, 400);
+			}
+
+			function uid() {
+				if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+				return "id-" + Math.random().toString(36).slice(2, 10);
+			}
+
+			function nameIsTaken(name) {
+				if (!sb) return Promise.resolve(false);
+				// lower() mirrors the unique index in supabase-schema.sql
+				return sb.from("profiles").select("id")
+					.eq("username", name)
+					.limit(1)
+					.then(function (r) {
+						/* A failed read (RLS, network) returns an error with
+						   data === null. Treating that as "not taken" would
+						   wave the user through, so surface it instead. */
+						if (r.error) throw r.error;
+						var row = (r.data || [])[0];
+						// the signed-in account may keep its own name
+						if (row && authUser && row.id === authUser.id) return false;
+						return !!row;
+					});
+			}
+
+			/* ---------- step 1: name ---------- */
+
+			// Strip anything that is not a letter, number, dot or hyphen,
+			// so disallowed characters can never reach the value.
+			input.addEventListener("input", function () {
+				var cleaned = input.value.replace(/[^A-Za-z0-9.-]/g, "");
+				if (cleaned !== input.value) {
+					var pos = input.selectionStart - (input.value.length - cleaned.length);
+					input.value = cleaned;
+					try { input.setSelectionRange(pos, pos); } catch (e) {}
+					setMsg(nameMsg, "Letters, numbers, dot and hyphen only.");
+				} else if (nameMsg.textContent === "Letters, numbers, dot and hyphen only.") {
+					setMsg(nameMsg, "");
+				}
+				engrave.textContent = cleaned;
+				engrave.classList.toggle("on", cleaned.length > 0);
+				nameSend.disabled = cleaned.length === 0;
+			});
+
+			// Never let a disallowed character in via paste either.
+			input.addEventListener("paste", function (e) {
+				e.preventDefault();
+				var text = (e.clipboardData || window.clipboardData).getData("text") || "";
+				var cleaned = text.replace(/[^A-Za-z0-9.-]/g, "");
+				input.value = (input.value + cleaned).slice(0, MAX_NAME);
+				input.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+
+			input.addEventListener("keydown", function (e) {
+				if (e.key === "Enter") { e.preventDefault(); nameSend.click(); }
+			});
+
+			nameSend.addEventListener("click", function () {
+				if (busy) return;
+				if (!authUser) { setMsg(nameMsg, "Sign in first."); return; }
+				var name = input.value.trim();
+
+				if (!name) {
+					setMsg(nameMsg, "Enter a name first.");
+					input.focus();
+					return;
+				}
+				if (!ALLOWED.test(name)) {
+					setMsg(nameMsg, "Letters, numbers, dot and hyphen only.");
+					return;
+				}
+				if (name.length > MAX_NAME) {
+					setMsg(nameMsg, "Names can be at most " + MAX_NAME + " characters.");
+					return;
+				}
+				if (!sb) {
+					setMsg(nameMsg, "Database not configured.");
+					return;
+				}
+
+				busy = true;
+				nameSend.disabled = true;
+				setMsg(nameMsg, "Checking availability...");
+
+				nameIsTaken(name.toLowerCase()).then(function (taken) {
+					if (taken) {
+						setMsg(nameMsg, "That name is already taken.");
+						return;
+					}
+					setMsg(nameMsg, "", true);
+					showStep(stepPic, stepName);
+					avatarUpload.focus();
+				}).catch(function (e) {
+					console.warn("[accounts] availability check", e);
+					/* Don't wave the user through on a failed check — that
+					   hides real problems (e.g. RLS) until the insert. */
+					var why = (e && (e.message || e.code)) || "Could not reach the database.";
+					setMsg(nameMsg, "Name check failed: " + why);
+					input.focus();
+				}).then(function () {
+					busy = false;
+					nameSend.disabled = input.value.trim().length === 0;
+				});
+			});
+
+			/* ---------- step 2: picture ---------- */
+
+			avatarUpload.addEventListener("click", function () { avatarFile.click(); });
+
+			avatarCircle.setAttribute("tabindex", "0");
+			avatarCircle.setAttribute("role", "button");
+			avatarCircle.addEventListener("click", function () { avatarFile.click(); });
+			avatarCircle.addEventListener("keydown", function (e) {
+				if (e.key === "Enter" || e.key === " ") { e.preventDefault(); avatarFile.click(); }
+			});
+
+			avatarFile.addEventListener("change", function () {
+				var f = avatarFile.files && avatarFile.files[0];
+				if (!f) return;
+
+				if (!/^image\/(png|jpeg|webp|gif)$/.test(f.type)) {
+					setMsg(picMsg, "Use a PNG, JPEG, WebP or GIF image.");
+					avatarFile.value = "";
+					return;
+				}
+				if (f.size > 5 * 1024 * 1024) {
+					setMsg(picMsg, "Images must be under 5 MB.");
+					avatarFile.value = "";
+					return;
+				}
+
+				if (chosen.preview) URL.revokeObjectURL(chosen.preview);
+				chosen.file = f;
+				chosen.preview = URL.createObjectURL(f);
+				avatarImg.src = chosen.preview;
+				avatarImg.hidden = false;
+				avatarIcon.style.display = "none";
+				avatarCircle.classList.add("has-image");
+				setMsg(picMsg, "");
+			});
+
+			picBack.addEventListener("click", function () {
+				showStep(stepName, stepPic);
+				input.focus();
+			});
+
+			picSend.addEventListener("click", function () {
+				if (busy) return;
+
+				var name = input.value.trim().toLowerCase();
+				if (!name || !ALLOWED.test(name)) {
+					showStep(stepName, stepPic);
+					setMsg(nameMsg, "Enter a valid name first.");
+					return;
+				}
+				if (!sb) {
+					setMsg(picMsg, "Database not configured.");
+					return;
+				}
+
+				var accent = "greenyellow";
+				try { accent = (JSON.parse(localStorage.getItem("accent") || "{}").accent) || accent; } catch (e) {}
+
+								if (!authUser) { setMsg(picMsg, "Sign in first."); return; }
+
+				busy = true;
+				picSend.disabled = true;
+				picBack.disabled = true;
+				setMsg(picMsg, chosen.file ? "Uploading picture..." : "Creating account...");
+
+				var upload = chosen.file
+					? sb.storage.from(BUCKET)
+						.upload(uid() + "-" + Date.now() + "-" + chosen.file.name.replace(/[^\w.-]/g, "_"), chosen.file, { cacheControl: "3600" })
+						.then(function (r) {
+							if (r.error) throw r.error;
+							return r.data.path;
+						})
+					: Promise.resolve(null);
+
+				upload
+					.then(function (path) {
+						return sb.from("profiles").insert({
+							id: authUser.id,
+							username: name,
+							avatar_path: path,
+							avatar: { type: "icon", name: "user", color: "#22c55e", accent: accent }
+						}).select().single();
+					})
+					.then(function (r) {
+						if (r.error) {
+							// 23505 = unique violation: someone took the name first.
+							if (r.error.code === "23505") {
+								showStep(stepName, stepPic);
+								setMsg(nameMsg, "That name is already taken.");
+							} else {
+								/* 42501 in practice means RLS is enabled with no
+								   policy for the anon key. Say so plainly instead
+								   of a generic retry message. */
+								console.warn("[accounts] insert", r.error);
+								var code = r.error.code || "";
+								if (code === "42501" || /row-level security/i.test(r.error.message || "")) {
+									setMsg(picMsg, "Database is blocking this write (RLS). Run the updated supabase-schema.sql in Supabase > SQL Editor.");
+								} else if (code === "42703") {
+									setMsg(picMsg, "Database is missing a column. Run the updated supabase-schema.sql.");
+								} else {
+									setMsg(picMsg, "Could not create the account (" + code + "). " + (r.error.message || "Try again."));
+								}
+							}
+							return;
+						}
+
+						var profile = r.data;
+						try {
+							localStorage.setItem("social.v1", JSON.stringify({
+								profile: {
+									id: profile.id,
+									username: profile.username,
+									avatar: { type: "icon", name: "user", color: "#22c55e", accent: accent },
+									avatarPath: profile.avatar_path || null,
+									online: true,
+									createdAt: Date.now()
+								},
+								friends: [], dms: {}, dmOrder: [], msgs: {}, jerryMsgs: [], groups: []
+							}));
+						} catch (e) {
+							console.warn("[accounts] could not cache profile", e);
+						}
+
+												/* Seed this browser's playtime total so the account is
+						   on the leaderboard from its first visit. */
+						try {
+							var pm = JSON.parse(localStorage.getItem("rcdn-playtime") || "{}");
+							var ptTotal = 0;
+							for (var pk in pm) { var pv = Number(pm[pk]); if (isFinite(pv) && pv > 0) ptTotal += pv; }
+							localStorage.setItem("rcdn-playtime-synced", String(Math.floor(ptTotal)));
+						} catch (e) {}
+
+						window.location.href = "index.html";
+					})
+					.catch(function (e) {
+						console.warn("[accounts] create", e);
+						var msg = (e && e.message) || "";
+						if (/row-level security/i.test(msg)) {
+							setMsg(picMsg, "Database is blocking this write (RLS). Run the updated supabase-schema.sql in Supabase > SQL Editor.");
+						} else if (/bucket not found/i.test(msg)) {
+							setMsg(picMsg, "Missing the 'avatars' storage bucket. Run the updated supabase-schema.sql.");
+						} else {
+							setMsg(picMsg, "Could not create the account: " + msg);
+						}
+					})
+					.then(function () {
+						busy = false;
+						picSend.disabled = false;
+						picBack.disabled = false;
+					});
+			});
+
+			
+			/* ---------- sign-in flow ---------- */
+
+			function goIndex() { window.location.href = "index.html"; }
+
+			/* Supabase's messages are accurate but cryptic; the common setup
+			   ones get a sentence saying what to change in the dashboard. */
+			function authHintMsg(error) {
+				var msg = String((error && (error.message || error.error_description)) || "");
+				if (/provider is not enabled|unsupported provider/i.test(msg)) {
+					return "Google sign-in is off in Supabase (Authentication > Providers > Google).";
+				}
+				if (/redirect|not allowed|invalid url/i.test(msg)) {
+					return "This link is not in Supabase's redirect list. Add " + location.origin + " under Authentication > URL Configuration.";
+				}
+				if (/error sending .*(confirmation|magic link|recovery|email) email/i.test(msg)) {
+					return "The mail server was reached but rejected the message. Usually the sender address isn't on a domain verified with your mail provider (look under Domains there), or the SMTP password is wrong. Supabase > Logs > Auth shows the exact error.";
+				}
+				if (/only request this after|for security purposes/i.test(msg)) {
+					var secs = (msg.match(/(\d+)\s*(?:seconds?|s)\b/i) || [])[1];
+					return "A code was just sent to this address. Check your inbox" +
+						(secs && Number(secs) > 1 ? ", or wait " + secs + "s" : ", or wait a moment") +
+						" before asking for another.";
+				}
+				if (/email rate limit exceeded|over_email_send_rate_limit/i.test(msg)) {
+					return "Supabase's built-in sender allows 2 emails an hour for the whole project, and that allowance is used up. Enter a code you already received, or try again later (custom SMTP lifts the cap).";
+				}
+				if (/row-level security|permission denied for table/i.test(msg)) {
+					return "The database is refusing writes for signed-in users. Run the updated supabase-schema.sql - it adds the policies for signed-in requests.";
+				}
+				if (/email address not authorized/i.test(msg)) {
+					return "Supabase only emails addresses on your Supabase team while its built-in sender is in use. Add this address to the team, or set up custom SMTP.";
+				}
+				if (/rate limit|too many/i.test(msg)) {
+					return "Too many codes requested. Wait a minute, then try again.";
+				}
+				return msg || "Something went wrong. Try again.";
+			}
+
+			function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || "").trim()); }
+
+			function rateLimitErr(error) {
+				var msg = String((error && (error.message || error.error_description)) || "");
+				return /rate limit|too many|only request this after|for security purposes|over_email_send_rate_limit/i.test(msg);
+			}
+
+			/* The send was throttled, but a code sent moments ago may still be
+			   valid, so the entry step stays available instead of dead-ending. */
+			function offerExistingCode(error, email) {
+				if (!rateLimitErr(error)) return false;
+				pendingEmail = email;
+				if (codeSub) codeSub.textContent = "Enter a code you already received for " + email + ". New codes are paused for now.";
+				if (codeInput) codeInput.value = "";
+				setMsg(codeMsg, "");
+				showStep(stepCode, stepEmail);
+				if (codeInput) codeInput.focus();
+				return true;
+			}
+
+			function showChoice() {
+				[stepName, stepPic, stepEmail, stepCode, stepAnon].forEach(function (el) { if (el) el.hidden = true; });
+				if (stepChoice) stepChoice.hidden = false;
+			}
+
+			function cacheProfile(row) {
+				try {
+					localStorage.setItem("social.v1", JSON.stringify({
+						profile: {
+							id: row.id,
+							username: row.username,
+							avatar: row.avatar || { type: "icon", name: "user", color: "#22c55e" },
+							avatarPath: row.avatar_path || null,
+							online: true,
+							createdAt: row.created_at ? Date.parse(row.created_at) : Date.now()
+						},
+						friends: [], dms: {}, dmOrder: [], msgs: {}, jerryMsgs: [], groups: []
+					}));
+				} catch (e) {
+					console.warn("[accounts] could not cache profile", e);
+				}
+			}
+
+			/* Google accounts carry a name and picture, so they skip the last
+			   two steps; email accounts pick a name and a picture here. */
+			function googleName(user) {
+				var m = user.user_metadata || {};
+				var raw = m.full_name || m.name || m.user_name || (user.email ? String(user.email).split("@")[0] : "") || "player";
+				var s = String(raw).replace(/[^\x20-\x7E]/g, "").trim()
+					.replace(/[^A-Za-z0-9._ -]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^[-.]+|[-.]+$/g, "");
+				return (s || "player").slice(0, MAX_NAME);
+			}
+			function googleAvatar(user) {
+				var m = user.user_metadata || {};
+				var url = m.avatar_url || m.picture;
+				if (url) return { type: "image", data: url, url: url, value: url };
+				return { type: "icon", name: "user", color: "#22c55e" };
+			}
+
+			async function freeName(base) {
+				for (var i = 0; i < 30; i++) {
+					var suffix = i ? String(i + 1) : "";
+					var cand = (String(base).slice(0, MAX_NAME - suffix.length) + suffix) || "player";
+					var r = await sb.from("profiles").select("id").eq("username", cand.toLowerCase()).limit(1);
+					if (r.error) return cand;
+					if (!r.data || !r.data.length) return cand;
+				}
+				return "player" + Math.floor(1000 + Math.random() * 9000);
+			}
+
+			async function profileRow(userId) {
+				/* auth_id first: an account created before sign-in existed keeps
+				   its own row id and is attached through auth_id instead. */
+				var byAuth = await sb.from("profiles").select("*").eq("auth_id", userId).maybeSingle();
+				if (byAuth.data) return byAuth.data;
+				var r = await sb.from("profiles").select("*").eq("id", userId).maybeSingle();
+				if (r.error) throw r.error;
+				return r.data || null;
+			}
+
+			function legacyProfile() {
+				try {
+					var s = JSON.parse(localStorage.getItem("social.v1") || "null");
+					var p = s && s.profile;
+					return p && p.id && !p.authId ? p : null;
+				} catch (e) { return null; }
+			}
+
+			/* Signing in on a browser that already has an account adopts that
+			   account instead of creating a second one: the row keeps its id,
+			   so friends, messages and progress are untouched. */
+			async function claimLegacy(user) {
+				var p = legacyProfile();
+				if (!p) return null;
+				try {
+					var owned = await sb.from("profiles").select("id").eq("auth_id", user.id).limit(1);
+					if (owned.error || (owned.data && owned.data.length)) return null;
+					var up = await sb.from("profiles").update({ auth_id: user.id }).eq("id", p.id);
+					if (up.error) return null;
+					p.authId = user.id;
+					var store = JSON.parse(localStorage.getItem("social.v1") || "{}");
+					store.profile = p;
+					localStorage.setItem("social.v1", JSON.stringify(store));
+					return p;
+				} catch (e) {
+					console.warn("[accounts] claim", e);
+					return null;
+				}
+			}
+
+			/* One decision point for every way in (Google redirect, emailed
+			   code, or an existing session): existing account -> site; new
+			   Google account -> created from Google; new email account ->
+			   name + picture. */
+			async function resolveUser(user) {
+				if (!user || resolving) return;
+				resolving = true;
+				authUser = user;
+				var row = null;
+				try {
+					row = await profileRow(user.id);
+				} catch (e) {
+					resolving = false;
+					setMsg(choiceMsg, authHintMsg(e));
+					showChoice();
+					return;
+				}
+				if (row) { cacheProfile(row); goIndex(); return; }
+
+				var claimed = await claimLegacy(user);
+				if (claimed) { goIndex(); return; }
+
+				var providers = (user.identities || []).map(function (i) { return i.provider; });
+				if (providers.indexOf("google") !== -1) {
+					try {
+						var name = await freeName(googleName(user));
+						var ins = await sb.from("profiles")
+							.insert({ id: user.id, username: name, avatar: googleAvatar(user) })
+							.select().single();
+						if (ins.error) throw ins.error;
+						cacheProfile(ins.data);
+						goIndex();
+						return;
+					} catch (e) {
+						resolving = false;
+						setMsg(choiceMsg, authHintMsg(e));
+						showChoice();
+						return;
+					}
+				}
+
+				resolving = false;
+				setMsg(nameMsg, "");
+				nameSend.disabled = input.value.trim().length === 0;
+				showStep(stepName, stepChoice);
+				input.focus();
+			}
+
+			/* Supabase answers an unconfigured provider with a JSON error page
+			   instead of a redirect, so ask its public settings first and keep
+			   the user here with a usable message. */
+			async function googleEnabled() {
+				try {
+					var base = String(window.SUPABASE_URL || "").replace(/\/+$/, "");
+					if (!base) return null;
+					var r = await fetch(base + "/auth/v1/settings", { headers: { apikey: window.SUPABASE_ANON_KEY } });
+					if (!r.ok) return null;
+					var j = await r.json();
+					return !!(j && j.external && j.external.google);
+				} catch (e) { return null; }
+			}
+
+			if (googleBtn) googleBtn.addEventListener("click", async function () {
+				if (busy) return;
+				busy = true;
+				googleBtn.disabled = true;
+				setMsg(choiceMsg, "Opening Google...");
+				var enabled = await googleEnabled();
+				if (enabled === false) {
+					setMsg(choiceMsg, "Google sign-in isn't enabled in Supabase yet - turn it on in Authentication > Providers > Google, or continue with email.");
+					busy = false;
+					googleBtn.disabled = false;
+					return;
+				}
+				try {
+					var r = await sb.auth.signInWithOAuth({
+						provider: "google",
+						options: { redirectTo: location.origin + location.pathname }
+					});
+					if (r.error) { setMsg(choiceMsg, authHintMsg(r.error)); }
+				} catch (e) {
+					setMsg(choiceMsg, authHintMsg(e));
+				} finally {
+					busy = false;
+					googleBtn.disabled = false;
+				}
+			});
+
+			if (anonBtn) anonBtn.addEventListener("click", function () {
+				setMsg(choiceMsg, "");
+				showStep(stepAnon, stepChoice);
+				if (anonContinue) anonContinue.focus();
+			});
+			if (anonBack) anonBack.addEventListener("click", function () {
+				showStep(stepChoice, stepAnon);
+				if (anonBtn) anonBtn.focus();
+			});
+			if (anonContinue) anonContinue.addEventListener("click", function () {
+				/* No email means no Supabase user, so the browser's own id is
+				   the profile row key - the same shape accounts had before
+				   sign-in existed, and the one an email added later adopts. */
+				if (!guestId) guestId = uid();
+				authUser = { id: guestId, identities: [] };
+				setMsg(nameMsg, "");
+				nameSend.disabled = input.value.trim().length === 0;
+				showStep(stepName, stepAnon);
+				input.focus();
+			});
+
+			if (emailBtn) emailBtn.addEventListener("click", function () {
+				setMsg(emailMsg, "");
+				showStep(stepEmail, stepChoice);
+				if (emailInput) emailInput.focus();
+			});
+			if (emailBack) emailBack.addEventListener("click", function () { showStep(stepChoice, stepEmail); });
+			if (emailInput) emailInput.addEventListener("keydown", function (e) {
+				if (e.key === "Enter") { e.preventDefault(); emailSend.click(); }
+			});
+
+			if (emailSend) emailSend.addEventListener("click", async function () {
+				if (busy) return;
+				var email = (emailInput.value || "").trim().toLowerCase();
+				if (!validEmail(email)) { setMsg(emailMsg, "That email doesn't look right."); return; }
+				busy = true;
+				emailSend.disabled = true;
+				setMsg(emailMsg, "Sending a code...");
+				try {
+					var r = await sb.auth.signInWithOtp({
+						email: email,
+						options: { shouldCreateUser: true, emailRedirectTo: location.origin + location.pathname }
+					});
+					if (r.error) {
+						setMsg(emailMsg, authHintMsg(r.error));
+						offerExistingCode(r.error, email);
+						return;
+					}
+					pendingEmail = email;
+					if (codeSub) codeSub.textContent = "Sent to " + email + " from noreply@mail.app.supabase.io - click the link in it, or type the code if the email has one.";
+					if (codeInput) codeInput.value = "";
+					setMsg(codeMsg, "");
+					showStep(stepCode, stepEmail);
+					if (codeInput) codeInput.focus();
+				} catch (e) {
+					setMsg(emailMsg, authHintMsg(e));
+					offerExistingCode(e, email);
+				} finally {
+					busy = false;
+					emailSend.disabled = false;
+				}
+			});
+
+			if (codeBack) codeBack.addEventListener("click", function () { showStep(stepEmail, stepCode); });
+			if (codeInput) {
+				codeInput.addEventListener("input", function () {
+					var digits = codeInput.value.replace(/\D/g, "").slice(0, 10);
+					if (digits !== codeInput.value) codeInput.value = digits;
+				});
+				codeInput.addEventListener("keydown", function (e) {
+					if (e.key === "Enter") { e.preventDefault(); codeVerify.click(); }
+				});
+			}
+			if (codeVerify) codeVerify.addEventListener("click", async function () {
+				if (busy) return;
+				var digits = (codeInput.value || "").replace(/\D/g, "");
+				if (digits.length < 6 || digits.length > 10) { setMsg(codeMsg, "Enter the code from the email."); return; }
+				busy = true;
+				codeVerify.disabled = true;
+				setMsg(codeMsg, "Checking the code...");
+				try {
+					var r = await sb.auth.verifyOtp({ email: pendingEmail, token: digits, type: "email" });
+					if (r.error) { setMsg(codeMsg, authHintMsg(r.error)); return; }
+					var user = r.data && r.data.user;
+					if (!user) { setMsg(codeMsg, "That code didn't work. Request a new one."); return; }
+					setMsg(codeMsg, "");
+					resolving = false;
+					await resolveUser(user);
+				} catch (e) {
+					setMsg(codeMsg, authHintMsg(e));
+				} finally {
+					busy = false;
+					codeVerify.disabled = false;
+				}
+			});
+
+			/* ---------- init ---------- */
+
+			nameSend.disabled = true;
+			setMsg(nameMsg, "");
+			if (codeVerify) codeVerify.disabled = false;
+
+			(function boot() {
+				/* Hold the buttons back until the card has landed on the left
+				   (the .intro animation's 4.9s delay), then never again. */
+				if (stepChoice && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+					stepChoice.classList.add("intro");
+					stepChoice.addEventListener("animationend", function done(e) {
+						if (e.animationName !== "fieldIn") return;
+						stepChoice.removeEventListener("animationend", done);
+						stepChoice.classList.remove("intro");
+						stepChoice.style.opacity = "1";
+					});
+				}
+				if (!sb || !sb.auth) {
+					setMsg(choiceMsg, "Sign-in is unavailable: the database is not configured.");
+					if (googleBtn) googleBtn.disabled = true;
+					if (emailBtn) emailBtn.disabled = true;
+					if (anonBtn) anonBtn.disabled = true;
+					return;
+				}
+				/* Fires after the Google redirect (and on any later sign-in), so
+				   it is the reliable moment to resolve who just arrived. */
+				sb.auth.onAuthStateChange(function (event, session) {
+					if (event === "SIGNED_IN" && session && session.user) resolveUser(session.user);
+				});
+				sb.auth.getSession().then(function (r) {
+					var user = r && r.data && r.data.session && r.data.session.user;
+					if (user) resolveUser(user);
+				}).catch(function () {});
+			})();
+		})();
+	</script>
+</body>
+</html>

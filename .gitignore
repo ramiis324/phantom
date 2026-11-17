@@ -1,0 +1,24 @@
+*.zip
+node_modules/
+
+# Secrets and local-only state: never commit these.
+# smtp-key.txt holds the live SMTP password used by smtp-check.mjs.
+smtp-key.txt
+smtp-key.txt~*
+.freebuff/
+**/.wrangler/
+*.log
+
+# CDN assets (hosted on GitHub Pages, not InfinityFree)
+games/
+flash/
+ruffle/
+emulatorjs/
+img/
+desmond/
+# flash.html is a page index.html links to ("flash.html?<game>"), so it ships
+# with the frontend repo and must not be ignored like the flash/ player files.
+list_games.json
+movies/
+posters/
+list_movies.json

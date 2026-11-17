@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+		<meta http-equiv="Pragma" content="no-cache" />
+		<meta http-equiv="Expires" content="0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Phantom</title>
+<link rel="icon" type="image/png" href="../favicon.png?v=1" />
+<style>
+  :root {
+    --accent: greenyellow;
+    --accent2: #212121;
+    --bg: #1e1e1e;
+    --panel: #151515;
+    --border: #333;
+    --text: #eee;
+    --muted: #999;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* --- Top bar --- */
+  .browser-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .browser-bar .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .browser-bar .brand img {
+    width: 26px;
+    height: 26px;
+    filter: invert();
+  }
+
+  .browser-bar .brand span {
+    font-family: "Permanent Marker", cursive;
+    color: var(--accent);
+    font-size: 18px;
+    white-space: nowrap;
+  }
+
+  .nav-btns {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, transform 0.15s;
+    flex-shrink: 0;
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--accent2);
+    transform: translateY(-1px);
+  }
+
+  .icon-btn:active:not(:disabled) { transform: scale(0.92); }
+
+  .icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+  .icon-btn svg { width: 20px; height: 20px; }
+
+  .home-btn { margin-right: 2px; }
+
+  /* --- URL bar --- */
+  .url-wrap {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 60px;
+  }
+
+  #url-input {
+    width: 100%;
+    background: #232323;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13.5px;
+    padding: 9px 14px;
+    padding-left: 34px;
+    border-radius: 100px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  #url-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(173, 255, 47, 0.15);
+  }
+
+  .url-wrap .lock {
+    position: absolute;
+    left: 12px;
+    width: 14px;
+    height: 14px;
+    color: var(--accent);
+    pointer-events: none;
+  }
+
+  #go-btn { margin-left: 6px; }
+
+  .go-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: var(--accent2);
+    border: none;
+    border-radius: 100px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+
+  .go-btn:hover { box-shadow: 0 0 0 8px rgba(173, 255, 47, 0.12); }
+  .go-btn:active { transform: scale(0.95); }
+
+  /* --- Quick app chips row --- */
+  .app-rail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: #191919;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    flex-shrink: 0;
+    scrollbar-width: thin;
+  }
+
+  .app-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    background: #232323;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    color: #ddd;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .app-chip:hover {
+    border-color: var(--accent);
+    color: #fff;
+    background: #2a2a2a;
+  }
+
+  .app-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #111;
+  }
+
+  .app-chip svg { width: 16px; height: 16px; }
+
+  .app-chip.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    text-decoration: line-through;
+  }
+  .app-chip.disabled:hover {
+    border-color: var(--border);
+    color: #ddd;
+    background: #232323;
+  }
+
+  /* --- Loading overlay --- */
+  .loader {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 20, 0.72);
+    backdrop-filter: blur(3px);
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  .loader.show { display: flex; }
+
+  .spinner {
+    width: 44px;
+    height: 44px;
+    border: 4px solid rgba(255, 255, 255, 0.15);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* --- Frame --- */
+  .frame-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    background: #fff;
+  }
+
+  #proxy-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fff;
+  }
+
+  /* --- Toast --- */
+  .toast {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: var(--accent2);
+    padding: 10px 18px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    z-index: 60;
+  }
+
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 640px) {
+    .browser-bar { flex-wrap: wrap; }
+    .brand span { display: none; }
+    .url-wrap { order: 3; flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+  <!-- Top browser bar -->
+  <div class="browser-bar">
+    <div class="brand">
+      <img src="../ricon.svg" alt="R" />
+      <span>Proxy Browser</span>
+    </div>
+
+    <div class="nav-btns">
+      <button class="icon-btn home-btn" id="btn-home" title="Home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1Z"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-back" title="Back" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-fwd" title="Forward" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-reload" title="Reload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </div>
+
+    <div class="url-wrap">
+      <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <input type="text" id="url-input" placeholder="Enter a URL — TikTok opens by default" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <button class="go-btn" id="go-btn">Go</button>
+  </div>
+
+  <!-- Quick app chips -->
+  <div class="app-rail" id="app-rail">
+    <button class="app-chip disabled" data-url="https://www.tiktok.com" title="TikTok is not available through the proxy (its app crashes on startup)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+      TikTok
+    </button>
+    <button class="app-chip" data-url="https://www.instagram.com">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5"/></svg>
+      Instagram
+    </button>
+    <button class="app-chip active" data-url="https://www.youtube.com">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 7.5s-.2-1.6-.9-2.3c-.9-.9-1.9-.9-2.4-1C16.4 4 12 4 12 4s-4.4 0-7.7.2c-.5.1-1.5.1-2.4 1-.7.7-.9 2.3-.9 2.3S.8 9.4.8 11.3v1.4c0 1.9.2 3.8.2 3.8s.2 1.6.9 2.3c.9.9 2 .9 2.5 1 1.9.2 7.6.2 7.6.2s4.4 0 7.7-.2c.5-.1 1.5-.1 2.4-1 .7-.7.9-2.3.9-2.3s.2-1.9.2-3.8v-1.4c0-1.9-.2-3.8-.2-3.8zM9.5 15.5v-7l6.5 3.5-6.5 3.5z"/></svg>
+      YouTube
+    </button>
+    <button class="app-chip" data-url="https://www.snapchat.com">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c2 0 3.5 1.5 3.5 4 0 .6-.1 1.2-.3 1.7L17 9h-.5c-.3 3 2.5 3.5 2.5 5.5 0 .5-.3 1-1 1-.3 0-.6-.1-.9-.2l-.8 1.7c-.3.6-.6.7-1 .7H9.7c-.4 0-.7-.1-1-.7l-.8-1.7c-.3.1-.6.2-.9.2-.7 0-1-.5-1-1 0-2 2.8-2.5 2.5-5.5h-.5l1.8-1.3a6.4 6.4 0 0 1-.3-1.7C8.5 3.5 10 2 12 2z"/></svg>
+      Snapchat
+    </button>
+    <button class="app-chip" data-url="https://discord.com">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.5 1a18.3 18.3 0 0 0-5.8 0L8.6 3a19.8 19.8 0 0 0-5 1.4C.5 9.1-.3 13.6.1 18a19.7 19.7 0 0 0 6 3l1.2-2a13 13 0 0 1-2.1-1l.5-.4a14 14 0 0 0 12.6 0l.5.4a13 13 0 0 1-2.1 1l1.2 2a19.7 19.7 0 0 0 6-3c.5-5-.8-9.5-3.7-13.6zM8.5 15.3c-1.2 0-2.1-1-2.1-2.3s.9-2.3 2.1-2.3 2.1 1 2.1 2.3-.9 2.3-2.1 2.3zm7 0c-1.2 0-2.1-1-2.1-2.3s.9-2.3 2.1-2.3 2.1 1 2.1 2.3-.9 2.3-2.1 2.3z"/></svg>
+      Discord
+    </button>
+    <button class="app-chip" data-url="https://www.reddit.com">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a2 2 0 0 1 2 2c0 .6-.3 1.2-.7 1.6 2.6.4 4.7 2.3 5 5.3a2 2 0 0 1 .7-.4 2 2 0 0 1 1.7 3.5c0 .5-.1.9-.3 1.3-.7 1.9-2.8 3.4-5.7 4.1-.9.2-1.9.3-2.9.3s-2-.1-2.9-.3c-2.9-.7-5-2.2-5.7-4.1a3 3 0 0 1-.3-1.3 2 2 0 0 1 1.7-3.5c.1 0 .2.1.7.4.3-3 2.4-4.9 5-5.3A2 2 0 0 1 10 4a2 2 0 0 1 2-2zm0 6.5a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm-4.5.8a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zM7.8 15c.4 1 1.5 1.7 4.2 1.7s3.8-.7 4.2-1.7c.2-.4-.1-.8-.5-.9-.4-.1-.8.1-.9.5-.1.5-1.2.9-2.8.9s-2.7-.4-2.8-.9c-.1-.4-.5-.6-.9-.5-.4.1-.7.5-.5.9z"/></svg>
+      Reddit
+    </button>
+    <button class="app-chip" data-url="https://x.com">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2h3.7l-8.1 9.3L24 22h-7.5l-5.9-7.7L4 22H.3l8.7-9.9L0 2h7.7l5.3 7 5.9-7zm-1.3 18h2L6.6 4H4.4l13.2 16z"/></svg>
+      Twitter/X
+    </button>
+  </div>
+
+  <!-- Loading overlay -->
+  <div class="loader" id="loader"><div class="spinner"></div></div>
+
+  <!-- Proxy frame -->
+  <div class="frame-wrap">
+    <iframe id="proxy-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads" referrerpolicy="no-referrer"></iframe>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+   /* ====================================================================
+    * CONFIG — set PROXY_URL to your proxy server.
+    * This can be a Cloudflare Worker, a VPS (Oracle free tier, etc.),
+    * or any Node.js server running proxy-server/server.js.
+    * The UI can be hosted anywhere (static site, GitHub Pages, etc.)
+    * as long as the browser can reach this URL.
+    * ==================================================================== */
+  var PROXY_URL = "http://138.2.220.41:3000";
+
+  var frame = document.getElementById("proxy-frame");
+  var urlInput = document.getElementById("url-input");
+  var loader = document.getElementById("loader");
+  var toastEl = document.getElementById("toast");
+  var btnBack = document.getElementById("btn-back");
+  var btnFwd = document.getElementById("btn-fwd");
+  var btnReload = document.getElementById("btn-reload");
+  var btnHome = document.getElementById("btn-home");
+  var btnGo = document.getElementById("go-btn");
+  var chips = Array.from(document.querySelectorAll(".app-chip"));
+
+  var historyStack = [];
+  var historyIndex = -1;
+  var toastTimer = null;
+
+  function normalizeUrl(input) {
+    input = input.trim();
+    if (!input) return null;
+    if (/^(https?:|about:|data:|javascript:)/i.test(input)) return input;
+    return "https://" + input;
+  }
+
+  function probeUrl(targetUrl) {
+    // Plain-path proxy: <worker>/proxy/https://HOST/path
+    // Append a cache-busting query so the Cloudflare edge never serves a
+    // stale (old-scheme) response for the same target URL.
+    var t = normalizeUrl(targetUrl);
+    var sep = t.indexOf("?") >= 0 ? "&" : "?";
+    return PROXY_URL + "/proxy/" + t + sep + "_=" + Date.now();
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2500);
+  }
+
+  function setLoading(on) { loader.classList.toggle("show", !!on); }
+
+  function setActiveChip(url) {
+    chips.forEach(function (c) {
+      var target = normalizeUrl(c.getAttribute("data-url"));
+      c.classList.toggle("active", target && url.indexOf(target) === 0);
+    });
+  }
+
+  function updateButtons() {
+    btnBack.disabled = historyIndex <= 0;
+    btnFwd.disabled = historyIndex >= historyStack.length - 1;
+  }
+
+  function render(targetUrl) {
+    frame.src = probeUrl(targetUrl);
+    urlInput.value = targetUrl;
+    setActiveChip(targetUrl);
+    setLoading(true);
+    updateButtons();
+  }
+
+  function navigate(targetUrl) {
+    if (!targetUrl) return;
+    // trim stack forward-history
+    historyStack = historyStack.slice(0, historyIndex + 1);
+    historyStack.push(targetUrl);
+    historyIndex = historyStack.length - 1;
+    // persist in hash
+    try { location.hash = encodeURIComponent(targetUrl); } catch (e) {}
+    render(targetUrl);
+  }
+
+  /* --- navigation callbacks from the proxied frame (postMessage) --- */
+  window.addEventListener("message", function (e) {
+    var d = e.data || {};
+    if (d.type === "rcdn-nav" && typeof d.url === "string") {
+      var clean = d.url.split("#")[0];
+      if (!clean) return;
+      // tolerate proxied URLs: decide what to put in the bar
+      var shown = clean;
+      try {
+        var u = new URL(clean);
+        // if this is a proxy URL, strip the /proxy/ prefix to show the real site
+        if (u.origin + "/" === PROXY_URL.replace(/\/+$/, "") + "/" ||
+            (u.pathname.indexOf("/proxy/") === 0 && u.hostname.indexOf("workers.dev") >= 0)) {
+          var m = clean.match(/(?:https?:\/\/[^/]+\/proxy\/)(.+)/);
+          if (m) {
+            shown = m[1].replace(/([?&])_=\d+/, "$1").replace(/[?&]_=\d+$/, "");
+            u = new URL(shown);
+          }
+        }
+      } catch (err) {}
+      urlInput.value = shown; // show the real site URL in the bar
+      setActiveChip(shown);
+      // store the decoded real-site URL so render() re-encodes cleanly
+      if (historyStack[historyIndex] !== shown) {
+        historyStack = historyStack.slice(0, historyIndex + 1);
+        historyStack.push(shown);
+        historyIndex = historyStack.length - 1;
+        updateButtons();
+      }
+    }
+  });
+
+  /* --- buttons --- */
+  btnBack.addEventListener("click", function () {
+    if (historyIndex > 0) { historyIndex--; render(historyStack[historyIndex]); }
+  });
+  btnFwd.addEventListener("click", function () {
+    if (historyIndex < historyStack.length - 1) { historyIndex++; render(historyStack[historyIndex]); }
+  });
+  btnReload.addEventListener("click", function () {
+    render(historyStack[historyIndex] || "https://www.youtube.com");
+  });
+  btnHome.addEventListener("click", function () {
+    navigate("https://www.youtube.com");
+  });
+
+  function go() {
+    var url = normalizeUrl(urlInput.value);
+    if (!url) return showToast("Enter a URL first");
+    navigate(url);
+  }
+  btnGo.addEventListener("click", go);
+  urlInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") go();
+    e.stopPropagation();
+  });
+
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      if (c.classList && c.classList.contains("disabled")) return;
+      var url = normalizeUrl(c.getAttribute("data-url"));
+      if (url) navigate(url);
+    });
+  });
+
+  /* --- frame load --- */
+  frame.addEventListener("load", function () { setLoading(false); });
+
+  /* --- restore from hash on page load --- */
+  var initial = null;
+  try { initial = decodeURIComponent(location.hash.replace(/^#/, "")) || null; } catch (e) {}
+  if (initial) {
+    navigate(initial);
+  } else {
+    navigate("https://www.youtube.com");
+  }
+})();
+</script>
+</body>
+</html>

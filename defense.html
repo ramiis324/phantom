@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+		<meta http-equiv="Pragma" content="no-cache" />
+		<meta http-equiv="Expires" content="0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/png" href="favicon.png?v=1" />
+    <title>Phantom</title>
+    <style>
+        :root {
+            --accent: greenyellow;
+            --accent2: #212121;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #fff;
+            font-family: sans-serif;
+        }
+        #game {
+            position: fixed;
+            inset: 0;
+            display: block;
+            cursor: none;
+        }
+        #controls {
+            position: fixed;
+            left: 12px;
+            top: 16px;
+            z-index: 160;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            width: 44px;
+            background: rgba(0, 0, 0, 0.7);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 100px;
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            cursor: grab;
+            user-select: none;
+            padding: 6px;
+            overflow: hidden;
+        }
+        #controls.collapsed {
+            padding: 0;
+            gap: 0;
+            transform: translateX(-12px);
+            border-radius: 0 100px 100px 0;
+        }
+        #controls.collapsed .ctrl-actions {
+            display: none;
+        }
+        #controls.collapsed .ctrl-toggle svg {
+            transform: rotate(180deg);
+        }
+        .ctrl-toggle {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #fff;
+            border-radius: 50%;
+            flex-shrink: 0;
+            transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .ctrl-toggle:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ctrl-toggle svg {
+            transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .ctrl-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            overflow: hidden;
+        }
+        .back-btn {
+            background: transparent;
+            border: none;
+            color: #fff;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border-radius: 50%;
+            cursor: pointer;
+            font-family: sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ctrl-bookmark-btn {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            color: #fff;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+        .ctrl-bookmark-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ctrl-bookmark-btn.bookmarked svg {
+            fill: #fff;
+        }
+        .ctrl-color-btn {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            cursor: pointer;
+            color: #7dd3fc;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            box-sizing: border-box;
+        }
+        .ctrl-color-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        :root {
+            --ghost-color: #7dd3fc;
+        }
+        #ammo-hud {
+            position: fixed;
+            left: 26px;
+            bottom: 26px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 14px;
+            z-index: 50;
+            transform-origin: left bottom;
+            transform: rotate(10deg);
+        }
+        .ammo-num {
+            font-size: 68px;
+            font-weight: 800;
+            line-height: 1;
+            color: #fff;
+            -webkit-text-stroke: 4px #000;
+            font-family: sans-serif;
+        }
+        .ammo-caps {
+            display: flex;
+            gap: 8px;
+        }
+        .ammo-cap {
+            width: 18px;
+            height: 32px;
+            transform: skewX(-18deg);
+            background: var(--ghost-color);
+            border: 2px solid #000;
+            box-sizing: border-box;
+            transition: background 0.15s, opacity 0.15s;
+            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+        }
+        #reload-ring {
+            position: fixed;
+            left: 50%;
+            bottom: 96px;
+            transform: translateX(-50%);
+            width: 64px;
+            height: 64px;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.5);
+            border: 2px solid #000;
+            border-radius: 50%;
+        }
+        #reload-ring.visible {
+            display: flex;
+        }
+        #reload-ring svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        #reload-ring .rr-bg {
+            fill: none;
+            stroke: rgba(0, 0, 0, 0.15);
+            stroke-width: 5;
+        }
+        #reload-ring .rr-fg {
+            fill: none;
+            stroke: var(--ghost-color);
+            stroke-width: 5;
+            stroke-linecap: round;
+        }
+        #rr-time {
+            font-size: 20px;
+            font-weight: 800;
+            color: #000;
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    <div id="ammo-hud">
+        <div class="ammo-num" id="ammo-num">8</div>
+        <div class="ammo-caps" id="ammo-caps"></div>
+    </div>
+    <div id="reload-ring">
+        <svg viewBox="0 0 64 64">
+            <circle class="rr-bg" cx="32" cy="32" r="24"></circle>
+            <circle class="rr-fg" id="rr-fg" cx="32" cy="32" r="24"></circle>
+        </svg>
+        <span id="rr-time">2</span>
+    </div>
+    <div id="controls">
+        <button class="ctrl-toggle" id="ctrl-toggle">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+        </button>
+        <div class="ctrl-actions" id="ctrl-actions">
+            <button class="back-btn" id="ctrl-home" title="Home">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </button>
+            <button class="ctrl-bookmark-btn" id="bookmark-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            </button>
+            <button class="ctrl-color-btn" id="ghost-color-btn" title="Ghost color">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+            </button>
+        </div>
+    </div>
+    <input type="color" id="ghost-color-input" value="#7dd3fc" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;" tabindex="-1">
+    <script>
+        (function () {
+            try {
+                const saved = JSON.parse(localStorage.getItem("accent") || "{}");
+                if (saved.accent) {
+                    const r = document.documentElement.style;
+                    r.setProperty("--accent", saved.accent);
+                    r.setProperty("--accent2", saved.accent2 || "#212121");
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <script src="grainient-loader.js?v=7"></script>
+    <script>
+        const controls = document.getElementById("controls");
+        const toggle = document.getElementById("ctrl-toggle");
+
+        const savedTop = localStorage.getItem("controls-top");
+        if (savedTop) {
+            controls.style.top = savedTop;
+        }
+
+        if (localStorage.getItem("controls-collapsed") === "1") {
+            controls.classList.add("collapsed");
+        }
+
+        toggle.addEventListener("click", () => {
+            controls.classList.toggle("collapsed");
+            localStorage.setItem("controls-collapsed", controls.classList.contains("collapsed") ? "1" : "0");
+        });
+
+        const EXIT_ICONS = {
+            home: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+            games: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 19 6-6"/><path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5"/><path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m5 14 4 4"/><path d="m5 21-2-2"/><path d="M7.5 16.5 4 20"/></svg>',
+            movies: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a2 2 0 0 0 0-4 2 2 0 0 0-4 0 2 2 0 0 0-4 0 2 2 0 0 0-4 0 2 2 0 0 0 0 8"/><path d="M10 22 9 8"/><path d="m14 22 1-14"/><path d="M20 8c.5 0 .9.4.8 1l-2.6 12c-.1.5-.7 1-1.2 1H7c-.6 0-1.1-.4-1.2-1L3.2 9c-.1-.6.3-1 .8-1Z"/></svg>'
+        };
+        EXIT_ICONS.explore = EXIT_ICONS.games;
+        EXIT_ICONS.bookmarks = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>';
+        EXIT_ICONS.shows = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8"/></svg>';
+        EXIT_ICONS.leaderboard = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V11"/><path d="M12 21V3"/><path d="M16 21v-6"/></svg>';
+        EXIT_ICONS.settings = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>';
+        const EXIT_URLS = {
+            home: "index.html",
+            games: "index.html?view=explore",
+            explore: "index.html?view=explore",
+            bookmarks: "index.html?view=bookmarks",
+            movies: "index.html?view=movies",
+            shows: "index.html?view=shows",
+            leaderboard: "index.html?view=leaderboard",
+            settings: "index.html?view=settings"
+        };
+        const exitBtn = document.getElementById("ctrl-home");
+        let exitTarget = localStorage.getItem("rcdn-exit-target") || "explore";
+        if (!EXIT_URLS[exitTarget]) exitTarget = "explore";
+        exitBtn.innerHTML = EXIT_ICONS[exitTarget] || EXIT_ICONS.home;
+        exitBtn.title = exitTarget.charAt(0).toUpperCase() + exitTarget.slice(1);
+        exitBtn.addEventListener("click", () => {
+            location.href = EXIT_URLS[exitTarget];
+        });
+
+        let isDragging = false;
+        let wasDragged = false;
+        let startY, startTop;
+
+        function isDragHandle(el) {
+            return !el.closest("#ctrl-actions");
+        }
+
+        controls.addEventListener("mousedown", (e) => {
+            if (!isDragHandle(e.target)) return;
+            isDragging = true;
+            wasDragged = false;
+            startY = e.clientY;
+            startTop = controls.offsetTop;
+            controls.style.cursor = "grabbing";
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+            const dy = e.clientY - startY;
+            if (Math.abs(dy) > 5) wasDragged = true;
+            let newTop = startTop + dy;
+            const maxTop = window.innerHeight - controls.offsetHeight;
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+            controls.style.top = newTop + "px";
+        });
+
+        document.addEventListener("mouseup", () => {
+            if (!isDragging) return;
+            isDragging = false;
+            controls.style.cursor = "grab";
+            if (wasDragged) {
+                localStorage.setItem("controls-top", controls.style.top);
+            }
+        });
+
+        controls.addEventListener("touchstart", (e) => {
+            if (!isDragHandle(e.target)) return;
+            isDragging = true;
+            wasDragged = false;
+            startY = e.touches[0].clientY;
+            startTop = controls.offsetTop;
+        });
+
+        document.addEventListener("touchmove", (e) => {
+            if (!isDragging) return;
+            const dy = e.touches[0].clientY - startY;
+            if (Math.abs(dy) > 5) wasDragged = true;
+            let newTop = startTop + dy;
+            const maxTop = window.innerHeight - controls.offsetHeight;
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+            controls.style.top = newTop + "px";
+        });
+
+        document.addEventListener("touchend", () => {
+            if (!isDragging) return;
+            isDragging = false;
+            if (wasDragged) {
+                localStorage.setItem("controls-top", controls.style.top);
+            }
+        });
+
+        const bookmarkBtn = document.getElementById("bookmark-btn");
+        if (JSON.parse(localStorage.getItem("bookmarks") || "[]").includes("defense")) {
+            bookmarkBtn.classList.add("bookmarked");
+        }
+        bookmarkBtn.addEventListener("click", () => {
+            const bookmarks = JSON.parse(localStorage.getItem("bookmarks") || "[]");
+            const idx = bookmarks.indexOf("defense");
+            if (idx > -1) {
+                bookmarks.splice(idx, 1);
+                bookmarkBtn.classList.remove("bookmarked");
+            } else {
+                bookmarks.push("defense");
+                bookmarkBtn.classList.add("bookmarked");
+            }
+            localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
+        });
+
+        const ghostColorBtn = document.getElementById("ghost-color-btn");
+        const ghostColorInput = document.getElementById("ghost-color-input");
+        let ghostColor = "#7dd3fc";
+        try { ghostColor = localStorage.getItem("ghost-color") || "#7dd3fc"; } catch (e) {}
+        ghostColorInput.value = ghostColor;
+        ghostColorBtn.style.color = ghostColor;
+        function setGhostColor(c) {
+            ghostColor = c;
+            ghostColorInput.value = c;
+            ghostColorBtn.style.color = c;
+            try { localStorage.setItem("ghost-color", c); } catch (e) {}
+            document.documentElement.style.setProperty("--ghost-color", c);
+            if (window._setGhostColor) window._setGhostColor(c);
+        }
+        ghostColorBtn.addEventListener("click", () => ghostColorInput.click());
+        ghostColorInput.addEventListener("input", () => setGhostColor(ghostColorInput.value));
+        window._setGhostColor = setGhostColor;
+    </script>
+    <script>
+        if (window.grainient) {
+            window.grainient.setup({ label: "Defense" });
+            setTimeout(() => { window.grainient.ready(); }, 700);
+        }
+    </script>
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+
+        const GRID = 40;
+        let W = 0, H = 0, DPR = 1;
+
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * DPR;
+            canvas.height = H * DPR;
+            canvas.style.width = W + "px";
+            canvas.style.height = H + "px";
+        }
+        window.addEventListener("resize", resize);
+        resize();
+
+        const player = { x: 0, y: 0, r: 22, speed: 240, color: "#7dd3fc", tilt: 0, dirX: 0 };
+        try { player.color = localStorage.getItem("ghost-color") || "#7dd3fc"; } catch (e) {}
+        document.documentElement.style.setProperty("--ghost-color", player.color);
+
+        const AMMO_MAX = 8;
+        const BULLET_DIST = 20 * GRID;
+        const BULLET_SPEED = 680;
+        const BULLET_R = 7;
+        const RELOAD_TIME = 2;
+        const MARK_LIFE = 10;
+        const CIRC_LEN = 2 * Math.PI * 24;
+        player.ammo = AMMO_MAX;
+        player.reloading = false;
+        player.reloadT = 0;
+
+        let bullets = [];
+        let marks = [];
+        let shake = 0;
+
+        const ammoNumEl = document.getElementById("ammo-num");
+        const ammoCapsEl = document.getElementById("ammo-caps");
+        const rrFg = document.getElementById("rr-fg");
+        const rrTime = document.getElementById("rr-time");
+        const reloadRing = document.getElementById("reload-ring");
+        rrFg.style.strokeDasharray = CIRC_LEN;
+        rrFg.style.strokeDashoffset = 0;
+        for (let i = 0; i < AMMO_MAX; i++) {
+            const d = document.createElement("div");
+            d.className = "ammo-cap";
+            ammoCapsEl.appendChild(d);
+        }
+
+        function updateAmmoUI() {
+            ammoNumEl.textContent = player.ammo;
+            [...ammoCapsEl.children].forEach((c, i) => {
+                const filled = i < player.ammo;
+                c.style.background = filled ? "var(--ghost-color)" : "transparent";
+                c.style.opacity = filled ? "1" : "0.35";
+            });
+        }
+        updateAmmoUI();
+
+        function showReload() {
+            reloadRing.classList.add("visible");
+        }
+        function hideReload() {
+            reloadRing.classList.remove("visible");
+        }
+        function updateReloadRing() {
+            const frac = player.reloadT / RELOAD_TIME;
+            rrFg.style.strokeDashoffset = (CIRC_LEN * (1 - frac)).toFixed(1);
+            rrTime.textContent = Math.max(0, player.reloadT).toFixed(1);
+        }
+        function startReload() {
+            if (player.reloading) return;
+            player.reloading = true;
+            player.reloadT = RELOAD_TIME;
+            showReload();
+            updateReloadRing();
+        }
+
+        function spawnMark(x, y, r, color, life) {
+            marks.push({ x, y, r, color, t: 0, life: life || MARK_LIFE });
+        }
+        function splatter(x, y, big, color) {
+            const col = color || player.color;
+            const n = big ? 14 : 11;
+            for (let i = 0; i < n; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const ds = (big ? 30 : 22) * Math.random();
+                spawnMark(x + Math.cos(a) * ds, y + Math.sin(a) * ds, 2 + Math.random() * (big ? 4.5 : 3), col, 5);
+            }
+            spawnMark(x, y, big ? 8 : 6, col, 5);
+        }
+
+        window.addEventListener("mousedown", (e) => {
+            if (e.button !== 0) return;
+            if (e.target.closest("#controls") || e.target.closest("#ammo-hud") || e.target.closest("#reload-ring")) return;
+            if (player.reloading) return;
+            if (player.ammo <= 0) {
+                startReload();
+                return;
+            }
+            const wx = cam.x + mouse.sx - W / 2;
+            const wy = cam.y + mouse.sy - H / 2;
+            const dx = wx - player.x;
+            const dy = wy - player.y;
+            const d = Math.hypot(dx, dy) || 1;
+            bullets.push({
+                x: player.x + (dx / d) * 32,
+                y: player.y + (dy / d) * 32,
+                vx: (dx / d) * BULLET_SPEED,
+                vy: (dy / d) * BULLET_SPEED,
+                speed: BULLET_SPEED,
+                dist: 0,
+                dripT: 0
+            });
+            player.ammo--;
+            shake = 5;
+            updateAmmoUI();
+            if (player.ammo <= 0) startReload();
+        });
+
+        const keys = {};
+        const mouse = { sx: W / 2, sy: H / 2 };
+        const cam = { x: 0, y: 0, tx: 0, ty: 0 };
+
+        window.addEventListener("mousemove", (e) => {
+            mouse.sx = e.clientX;
+            mouse.sy = e.clientY;
+        });
+        window.addEventListener("touchmove", (e) => {
+            if (e.touches.length) {
+                mouse.sx = e.touches[0].clientX;
+                mouse.sy = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        window.addEventListener("keydown", (e) => {
+            const k = e.key.toLowerCase();
+            keys[k] = true;
+            if (k === "r") startReload();
+            if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
+        });
+        window.addEventListener("keyup", (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        window.addEventListener("wheel", (e) => {
+            if (e.ctrlKey) e.preventDefault();
+        }, { passive: false });
+
+        function update(dt) {
+            if (player.reloading) {
+                player.reloadT -= dt;
+                updateReloadRing();
+                if (player.reloadT <= 0) {
+                    player.reloading = false;
+                    player.reloadT = 0;
+                    player.ammo = AMMO_MAX;
+                    hideReload();
+                    updateAmmoUI();
+                }
+            }
+
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+                b.dist += b.speed * dt;
+                b.dripT += dt;
+                if (b.dripT >= 0.09) {
+                    b.dripT = 0;
+                    spawnMark(
+                        b.x + (Math.random() - 0.5) * 4,
+                        b.y + (Math.random() - 0.5) * 4,
+                        2 + Math.random() * 2,
+                        player.color
+                    );
+                }
+                if (b.dist >= BULLET_DIST) {
+                    splatter(b.x, b.y, false);
+                    bullets.splice(i, 1);
+                }
+            }
+
+            for (let i = marks.length - 1; i >= 0; i--) {
+                marks[i].t += dt;
+                if (marks[i].t >= MARK_LIFE) marks.splice(i, 1);
+            }
+
+            shake += (0 - shake) * Math.min(1, dt * 5);
+
+            const mx = mouse.sx - W / 2;
+            const my = mouse.sy - H / 2;
+            let dx = 0, dy = 0;
+            if (keys["w"] || keys["arrowup"]) dy -= 1;
+            if (keys["s"] || keys["arrowdown"]) dy += 1;
+            if (keys["a"] || keys["arrowleft"]) dx -= 1;
+            if (keys["d"] || keys["arrowright"]) dx += 1;
+            if (dx || dy) {
+                const len = Math.hypot(dx, dy);
+                player.x += (dx / len) * player.speed * dt;
+                player.y += (dy / len) * player.speed * dt;
+                player.dirX = dx / len;
+            } else {
+                player.dirX = 0;
+            }
+            const targetTilt = player.dirX * 0.22;
+            player.tilt += (targetTilt - player.tilt) * Math.min(1, dt * 8);
+
+            const cd = Math.hypot(mx, my);
+            const maxOff = 120;
+            const t = Math.min(1, cd / (Math.min(W, H) * 0.45));
+            const ox = (cd > 0 ? (mx / cd) * maxOff * t : 0);
+            const oy = (cd > 0 ? (my / cd) * maxOff * t : 0);
+            cam.tx = player.x + ox;
+            cam.ty = player.y + oy;
+
+            cam.x += (cam.tx - cam.x) * Math.min(1, dt * 10);
+            cam.y += (cam.ty - cam.y) * Math.min(1, dt * 10);
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = "#e8e8e8";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const left = Math.floor((cam.x - W / 2) / GRID) * GRID;
+            const top = Math.floor((cam.y - H / 2) / GRID) * GRID;
+            for (let gx = left; gx <= cam.x + W / 2; gx += GRID) {
+                ctx.moveTo(gx, cam.y - H / 2);
+                ctx.lineTo(gx, cam.y + H / 2);
+            }
+            for (let gy = top; gy <= cam.y + H / 2; gy += GRID) {
+                ctx.moveTo(cam.x - W / 2, gy);
+                ctx.lineTo(cam.x + W / 2, gy);
+            }
+            ctx.stroke();
+        }
+
+        function drawGhost(gx, gy, r, color) {
+            const bw = r;
+            const bottomY = gy + r * 1.6;
+            const kR = r * 0.5;
+            const cr = r * 1;
+            const topY = gy - r * 0.35;
+            ctx.beginPath();
+            ctx.moveTo(gx - bw, topY + cr);
+            ctx.arcTo(gx - bw, topY, gx - bw + cr, topY, cr);
+            ctx.lineTo(gx + bw - cr, topY);
+            ctx.arcTo(gx + bw, topY, gx + bw, topY + cr, cr);
+            ctx.lineTo(gx + bw, bottomY);
+            ctx.arc(gx + bw / 2, bottomY, kR, 0, Math.PI);
+            ctx.arc(gx - bw / 2, bottomY, kR, 0, Math.PI);
+            ctx.lineTo(gx - bw, topY + cr);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = "#000";
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            ctx.fillStyle = "#111";
+            ctx.beginPath();
+            ctx.ellipse(gx - r * 0.35, gy + r * 0.42, r * 0.16, r * 0.22, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(gx + r * 0.35, gy + r * 0.42, r * 0.16, r * 0.22, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawCursor() {
+            const wx = cam.x + mouse.sx - W / 2;
+            const wy = cam.y + mouse.sy - H / 2;
+            ctx.beginPath();
+            ctx.arc(wx, wy, 6, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff";
+            ctx.fill();
+            ctx.strokeStyle = "#000";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        function render() {
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, W, H);
+
+            const sx = shake > 0.1 ? (Math.random() - 0.5) * shake * 2 : 0;
+            const sy = shake > 0.1 ? (Math.random() - 0.5) * shake * 2 : 0;
+            ctx.save();
+            ctx.translate(W / 2 - cam.x + sx, H / 2 - cam.y + sy);
+            drawGrid();
+
+            for (const m of marks) {
+                const fade = m.t > MARK_LIFE - 0.8 ? Math.max(0, (MARK_LIFE - m.t) / 0.8) : 1;
+                ctx.globalAlpha = fade;
+                ctx.beginPath();
+                ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+                ctx.fillStyle = m.color;
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            for (const b of bullets) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, BULLET_R, 0, Math.PI * 2);
+                ctx.fillStyle = player.color;
+                ctx.fill();
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            const bob = Math.sin(performance.now() / 480) * 4;
+            ctx.save();
+            ctx.translate(player.x, player.y + bob);
+            ctx.rotate(player.tilt);
+            drawGhost(0, 0, player.r, player.color);
+            ctx.restore();
+            drawCursor();
+            ctx.restore();
+        }
+
+        let last = performance.now();
+        function frame(now) {
+            const dt = Math.min(0.05, (now - last) / 1000);
+            last = now;
+            update(dt);
+            render();
+            requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+    </script>
+</body>
+</html>

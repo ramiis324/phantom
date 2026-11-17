@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Loading</title>
+<style>
+	html, body { height: 100%; margin: 0; }
+	body {
+		display: flex; align-items: center; justify-content: center;
+		background: #0b0b0c; color: #e8e8ea;
+		font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	}
+	.wrap { max-width: 34rem; padding: 24px; text-align: center; }
+	.ring {
+		width: 34px; height: 34px; margin: 0 auto 18px;
+		border: 3px solid rgba(255, 255, 255, 0.16); border-top-color: #22c55e;
+		border-radius: 50%; animation: spin 0.8s linear infinite;
+	}
+	@keyframes spin { to { transform: rotate(360deg); } }
+	@media (prefers-reduced-motion: reduce) { .ring { animation-duration: 2.4s; } }
+	p { margin: 0 0 12px; color: #b6b6bb; }
+	strong { color: #fff; }
+	a { color: #4ade80; }
+	code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+	<div class="wrap">
+		<div class="ring" id="ring"></div>
+		<p id="msg">Loading the site…</p>
+	</div>
+	<script>
+		/* ============================================================================
+		   SINGLE-FILE SITE LOADER
+		   ----------------------------------------------------------------------------
+		   This is the only file that has to live on a mirror host. Every page it
+		   serves is fetched from the frontend repo at request time, so a change is
+		   pushed once to the repo and every mirror is updated - nothing is uploaded
+		   to the sites again.
+
+		   It keeps working the way the site already does because the page is written
+		   into THIS document: the address bar keeps the mirror's domain, so cookies,
+		   localStorage (local account, bookmarks, playtime) and the #phantom-sso
+		   handoff all stay on the domain the user is on. Resource URLs are pointed at
+		   the repo; links and script redirects stay relative, so they come back
+		   through this file and the host's rewrite rule.
+
+		   Edit REPO below, then upload this file as index.html and add the rewrite
+		   rule from .htaccess (also in the repo, under "single-file loader").
+		   ============================================================================ */
+		(function () {
+			"use strict";
+
+			/* --- the only thing to configure ---------------------------------- */
+			var REPO = "https://cdn.jsdelivr.net/gh/OWNER/REPO@main/";
+			/* ------------------------------------------------------------------ */
+
+			var msg = document.getElementById("msg");
+			var ring = document.getElementById("ring");
+
+			function fail(html) {
+				if (ring) ring.style.display = "none";
+				if (msg) msg.innerHTML = html;
+			}
+
+			function esc(text) {
+				return String(text).replace(/[<>&"]/g, function (c) {
+					return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c];
+				});
+			}
+
+			var path = location.pathname.replace(/^\/+/, "");
+			if (!path || path.charAt(path.length - 1) === "/") path += "index.html";
+
+			/* A request for a non-page means the host no longer holds that file, so
+			   hand it to the repo instead of rendering HTML into it. */
+			if (!/\.html?$/i.test(path)) {
+				location.replace(REPO + path + location.search + location.hash);
+				return;
+			}
+
+			if (path.indexOf("..") !== -1) {
+				fail("Refusing to load <code>" + esc(path) + "</code>.");
+				return;
+			}
+
+			var pageUrl = REPO + path + location.search;
+			var pageDir = REPO + path.replace(/[^\/]*$/, "");
+
+			/* Turn one reference into a repo URL. Anything already absolute (or a
+			   fragment) is left alone. */
+			function absolute(url) {
+				if (!url) return url;
+				if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(url)) return url;
+				if (url.charAt(0) === "/") return REPO + url.replace(/^\/+/, "");
+				return pageDir + url.replace(/^\.\//, "");
+			}
+
+			/* Only tags that LOAD a resource are rewritten. <a href> is deliberately
+			   untouched: a link has to stay on this host so the next page is served
+			   here too, with this origin's storage. */
+			var TAGS = /<(script|link|img|source|video|audio|iframe|embed|track|input)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+
+			function rewriteTags(html) {
+				return html.replace(TAGS, function (tag, name, attrs) {
+					attrs = attrs
+						.replace(/(\s(?:src|poster|data-src)\s*=\s*")([^"]*)(")/gi, function (m, a, v, b) {
+							return a + absolute(v) + b;
+						})
+						.replace(/(\s(?:src|poster|data-src)\s*=\s*')([^']*)(')/gi, function (m, a, v, b) {
+							return a + absolute(v) + b;
+						})
+						.replace(/(\shref\s*=\s*")([^"]*)(")/gi, function (m, a, v, b) {
+							return a + absolute(v) + b;
+						})
+						.replace(/(\shref\s*=\s*')([^']*)(')/gi, function (m, a, v, b) {
+							return a + absolute(v) + b;
+						})
+						.replace(/(\ssrcset\s*=\s*")([^"]*)(")/gi, function (m, a, v, b) {
+							return a + v.split(",").map(function (part) {
+								var bits = part.trim().split(/\s+/);
+								if (bits[0]) bits[0] = absolute(bits[0]);
+								return bits.join(" ");
+							}).join(", ") + b;
+						});
+					return "<" + name + attrs + ">";
+				});
+			}
+
+			/* Page scripts fetch their own data (json, avatars) with relative URLs.
+			   Inside the written page a relative URL would resolve against this host,
+			   where nothing but the loader exists, so those requests are aimed at the
+			   repo. Same rule as above: absolute URLs are never touched. */
+			function interceptor(dir) {
+				function abs(url) {
+					if (typeof url !== "string" || !url) return url;
+					if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(url)) return url;
+					if (url.charAt(0) === "/") return dir.replace(/[^\/]*\/$/, "") + url.replace(/^\/+/, "");
+					return dir + url.replace(/^\.\//, "");
+				}
+				var nativeFetch = window.fetch;
+				if (nativeFetch) {
+					window.fetch = function (input, init) {
+						try {
+							if (typeof input === "string") input = abs(input);
+							else if (input && input.url) {
+								var next = abs(input.url);
+								if (next !== input.url) input = new Request(next, input);
+							}
+						} catch (e) {}
+						return nativeFetch.call(this, input, init);
+					};
+				}
+				if (window.XMLHttpRequest) {
+					var nativeOpen = XMLHttpRequest.prototype.open;
+					XMLHttpRequest.prototype.open = function () {
+						try {
+							if (typeof arguments[1] === "string") arguments[1] = abs(arguments[1]);
+						} catch (e) {}
+						return nativeOpen.apply(this, arguments);
+					};
+				}
+			}
+
+			var boot = "<script>(" + interceptor.toString() + ")(" + JSON.stringify(pageDir) + ");<\/script>";
+
+			fetch(pageUrl, { cache: "no-store", credentials: "omit" })
+				.then(function (res) {
+					if (!res.ok) throw new Error("The repo answered " + res.status + " for " + path + ".");
+					return res.text();
+				})
+				.then(function (html) {
+					if (!/<html[\s>]/i.test(html)) {
+						throw new Error("The repo did not return a page for " + path + ". Check REPO and that the file exists.");
+					}
+					/* A <base> in the fetched page would send links back to the repo. */
+					html = html.replace(/<base\b[^>]*>/gi, "");
+					html = rewriteTags(html);
+					/* The interceptor has to exist before any page script runs. */
+					if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, function (m) { return m + boot; });
+					else html = boot + html;
+					document.open();
+					document.write(html);
+					document.close();
+				})
+				.catch(function (err) {
+					fail(
+						"Could not load <strong>" + esc(path) + "</strong> from the site repo.<br>" +
+						"<small>" + esc((err && err.message) || err) + "</small><br><br>" +
+						'<a href="">Try again</a>'
+					);
+				});
+		})();
+	</script>
+</body>
+</html>

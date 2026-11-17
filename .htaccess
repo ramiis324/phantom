@@ -1,0 +1,76 @@
+# ------------------------------------------------------------------
+# Single-file loader.
+#
+# The mirror hosts hold exactly one file (index.html, the loader in
+# mirror/). Everything else is fetched from the frontend repo, so any
+# page that is not sitting on the host is handed to the loader instead
+# of a 404. Real files always win, so an older upload keeps working
+# untouched until it is deleted.
+# ------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+AddType application/wasm .wasm
+AddType application/octet-stream .data
+AddType application/octet-stream .mem
+AddType application/octet-stream .symbols
+AddType application/octet-stream .unity3d
+AddType application/octet-stream .proto
+AddType application/x-shockwave-flash .swf
+
+ErrorDocument 404 default
+
+<IfModule mod_headers.c>
+    Header always unset Content-Security-Policy
+    Header always unset X-Content-Security-Policy
+</IfModule>
+
+# ------------------------------------------------------------------
+# Cache policy: never serve a stale build.
+#
+# InfinityFree proxies/CDN and preserved file mtimes make ETag /
+# Last-Modified based revalidation unreliable (a changed file can still
+# come back as 304), which is why users kept getting older versions.
+# We sidestep validation entirely: nothing is stored, so every request
+# goes to the origin and always gets the just-deployed bytes. Static
+# assets are small enough that this is cheap.
+# ------------------------------------------------------------------
+<IfModule mod_headers.c>
+    # Kill any ETag so no proxy or browser can validate against it and
+    # hand back a stale 304.
+    Header unset ETag
+
+    # HTML: never cache, never store.
+    <FilesMatch "\.(html?|php)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+
+    # Scripts, styles, data: never store either, so a redeploy is picked
+    # up immediately even if the ?v= query was not bumped.
+    <FilesMatch "\.(js|mjs|css|json|wasm|data|mem|symbols|unity3d|proto|swf|txt)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+
+    # Images/fonts/media: no-store as well; they are all small here and
+    # this guarantees a fresh build for every visitor.
+    <FilesMatch "\.(png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive Off
+</IfModule>
+
+# Kill ETag (both spellings) even if mod_headers is unavailable, so the
+# browser cannot fall back to a stale inode/mtime validator.
+FileETag None

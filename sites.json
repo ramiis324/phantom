@@ -1,0 +1,9 @@
+{
+	"comment": "Every mirror of this frontend. Add or remove a host here and the Sites tab picks it up on its next open - no page code needs editing or re-uploading. Entries may be plain hostnames or { host, name } objects.",
+	"sites": [
+		"phantom.gt.tc",
+		"phantom.fwh.is",
+		"phantom.66ghz.com",
+		"phantom.nfy.fyi"
+	]
+}

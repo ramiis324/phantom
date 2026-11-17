@@ -1,0 +1,16 @@
+{
+  "name": "rcdn-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Reverse proxy browser for TikTok, YouTube, Instagram, etc.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "postinstall": "node --check server.js && echo 'server.js OK'"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.21.3"
+  }
+}
