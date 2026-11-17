@@ -92,9 +92,12 @@
 			   fragment) is left alone. */
 			function absolute(url) {
 				if (!url) return url;
-				if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(url)) return url;
-				if (url.charAt(0) === "/") return REPO + url.replace(/^\/+/, "");
-				return pageDir + url.replace(/^\.\//, "");
+				var value = String(url).trim();
+				/* A template placeholder is filled in at runtime, not a path. */
+				if (!value || value.indexOf("${") !== -1) return url;
+				if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(value)) return url;
+				if (value.charAt(0) === "/") return REPO + value.replace(/^\/+/, "");
+				return pageDir + value.replace(/^\.\//, "");
 			}
 
 			/* Only tags that LOAD a resource are rewritten. <a href> is deliberately
@@ -163,6 +166,26 @@
 				}
 			}
 
+			/* Script bodies are code, not markup. A template string inside one can
+			   contain "<img src=\"${...}\">", and rewriting that would prefix the
+			   URL the script builds at runtime (this is what broke every profile
+			   picture: a Supabase URL became REPO + Supabase URL). Only the
+			   opening <script> tag is rewritten, for an external src. */
+			var SCRIPT_BLOCK = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
+
+			function rewriteMarkup(html) {
+				var out = "";
+				var last = 0;
+				var match;
+				SCRIPT_BLOCK.lastIndex = 0;
+				while ((match = SCRIPT_BLOCK.exec(html)) !== null) {
+					out += rewriteTags(html.slice(last, match.index));
+					out += match[0].replace(/^<script\b[^>]*>/i, function (open) { return rewriteTags(open); });
+					last = match.index + match[0].length;
+				}
+				return out + rewriteTags(html.slice(last));
+			}
+
 			var boot = "<script>(" + interceptor.toString() + ")(" + JSON.stringify(pageDir) + ");<\/script>";
 
 			fetch(pageUrl, { cache: "no-store", credentials: "omit" })
@@ -176,7 +199,7 @@
 					}
 					/* A <base> in the fetched page would send links back to the repo. */
 					html = html.replace(/<base\b[^>]*>/gi, "");
-					html = rewriteTags(html);
+					html = rewriteMarkup(html);
 					/* The interceptor has to exist before any page script runs. */
 					if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, function (m) { return m + boot; });
 					else html = boot + html;
