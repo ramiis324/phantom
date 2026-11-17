@@ -1257,6 +1257,17 @@
   function localGroupById(id) {
     return local.data.groups.find((g) => g.id === id) || null;
   }
+  /* Local mode: give a group the same last/updatedAt shape the remote list
+     has, so the sidebar preview, unread dot and ordering work offline too. */
+  function decorateLocalGroup(g) {
+    const dg = decorateGroup(g);
+    const all = local.data.msgs || {};
+    const msgs = all[dg.id] || all["g_" + dg.id] || [];
+    dg.last = msgs.length ? msgs[msgs.length - 1] : null;
+    dg.updatedAt = Math.max(dg.updatedAt || 0, dg.createdAt || 0, (dg.last && dg.last.ts) || 0);
+    return dg;
+  }
+
   function decorateGroup(g) {
     return {
       ...g,
@@ -1570,6 +1581,29 @@
     return msg;
   }
 
+  /* Newest message of each conversation, keyed by conversation id. The
+     sidebar preview, unread dot and recency order all read this off the
+     conversation object, which the conversation group rows do not carry. */
+  async function lastMessagesOf(convIds) {
+    const lastOf = {};
+    /* one query per conversation: a shared "newest 400" query would miss a
+       group that has been quiet while a busy one produced newer messages */
+    await Promise.all(
+      (convIds || []).map(async (id) => {
+        try {
+          const { data } = await sb
+            .from("messages")
+            .select("id, conversation_id, sender_id, content, type, meta, created_at")
+            .eq("conversation_id", id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          if (data && data[0]) lastOf[id] = msgRowToMsg(data[0]);
+        } catch (e) {}
+      })
+    );
+    return lastOf;
+  }
+
   async function getGroupsRemote() {
     const meId = myId();
     const { data: myRows } = await sb.from("conversation_members").select("conversation_id").eq("user_id", meId);
@@ -1585,14 +1619,24 @@
     (mems || []).forEach((r) => {
       if (r.profiles) (byConv[r.conversation_id] || (byConv[r.conversation_id] = [])).push(rowToProfile(r.profiles));
     });
-    return convs.map((c) => groupFromRow(c, byConv[c.id] || []));
+    const lastOf = await lastMessagesOf(convs.map((c) => c.id));
+    return convs.map((c) => {
+      const g = groupFromRow(c, byConv[c.id] || []);
+      g.last = lastOf[c.id] || null;
+      g.updatedAt = Math.max(g.createdAt || 0, (g.last && g.last.ts) || 0);
+      return g;
+    });
   }
 
   async function getGroupRemote(id) {
     const { data: conv } = await sb.from("conversations").select("*").eq("id", id).maybeSingle();
     if (!conv || conv.type !== "group") return null;
     const members = await membersOfRemote(id);
-    return groupFromRow(conv, members);
+    const g = groupFromRow(conv, members);
+    const lastOf = await lastMessagesOf([conv.id]);
+    g.last = lastOf[conv.id] || null;
+    g.updatedAt = Math.max(g.createdAt || 0, (g.last && g.last.ts) || 0);
+    return g;
   }
 
   async function createGroupRemote({ name, avatar, bannerColor }) {
@@ -1893,6 +1937,42 @@
   }
 
   /* ------------------------------------------------------------------ *
+   *  Mirror registry
+   *  Every host that serves this frontend announces itself in one shared
+   *  table (see sites-migration.sql), so a freshly deployed site reaches
+   *  the Sites tab of the other mirrors without editing sites.json. Reads
+   *  and writes are open to signed-out visitors; rows only hold hostnames.
+   * ------------------------------------------------------------------ */
+  function normaliseHost(host) {
+    return String(host || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/.*$/, "")
+      .replace(/^www\./, "");
+  }
+  async function registerSiteRemote(host) {
+    if (!sb || MODE !== "supabase") return false;
+    const { error } = await sb
+      .from("site_mirrors")
+      .upsert({ host, last_seen: new Date().toISOString() }, { onConflict: "host" });
+    if (error) {
+      console.warn("[db] registerSite", error.message || error);
+      return false;
+    }
+    return true;
+  }
+  async function getSitesRemote() {
+    if (!sb || MODE !== "supabase") return [];
+    const { data, error } = await sb
+      .from("site_mirrors")
+      .select("host")
+      .order("first_seen", { ascending: true });
+    if (error || !data) return [];
+    return data.map((r) => normaliseHost(r.host)).filter(Boolean);
+  }
+
+  /* ------------------------------------------------------------------ *
    *  Public API
    * ------------------------------------------------------------------ */
   const DB = {
@@ -2173,12 +2253,12 @@
 
     /* -- groups -- */
     async getGroups() {
-      return MODE === "supabase" ? getGroupsRemote() : local.data.groups.map((g) => decorateGroup(g));
+      return MODE === "supabase" ? getGroupsRemote() : local.data.groups.map((g) => decorateLocalGroup(g));
     },
     async getGroup(id) {
       if (MODE === "supabase") return getGroupRemote(id);
       const g = localGroupById(id);
-      return g ? decorateGroup(g) : null;
+      return g ? decorateLocalGroup(g) : null;
     },
     async createGroup(o) {
       return MODE === "supabase" ? createGroupRemote(o) : createGroupLocal(o);
@@ -2202,6 +2282,24 @@
       const g = localGroupById(groupId);
       if (!g) return [];
       return g.members.map(profileById).filter(Boolean);
+    },
+
+    /* -- sites (mirror registry) -- */
+    async registerSite(host) {
+      const h = normaliseHost(host);
+      if (!h) return false;
+      if (MODE === "supabase") return registerSiteRemote(h);
+      const d = local.data;
+      if (!d.sites) d.sites = [];
+      if (d.sites.indexOf(h) === -1) {
+        d.sites.push(h);
+        local.save();
+      }
+      return true;
+    },
+    async getSites() {
+      if (MODE === "supabase") return getSitesRemote();
+      return (local.data.sites || []).slice();
     },
 
     /* -- calls (v1: 1-on-1 WebRTC, table is only the ring/handshake state) -- */
