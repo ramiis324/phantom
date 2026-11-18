@@ -259,7 +259,7 @@
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<script src="supabase-config.js?v=3"></script>
 		<script src="online.js?v=1"></script>
-		<script src="db.js?v=62"></script>
+		<script src="db.js?v=63"></script>
 		<script src="grainient-loader.js?v=7"></script>
         <script src="ruffle/ruffle.js"></script>
         <script src="toolbox.js?v=21"></script>
@@ -601,6 +601,16 @@
                 document.addEventListener("freeze", flush);
                 if (window.__addPauseListener) window.__addPauseListener(refresh);
                 refresh();
+            })();
+        </script>
+        <script>
+            /* flash.html loads db.js but never called into it, so the
+               progress watcher was never installed and a bookmark made from
+               the toolbox on this page never left the browser. */
+            (function () {
+                try {
+                    if (window.DB && window.DB.startProgressSync) DB.startProgressSync();
+                } catch (e) {}
             })();
         </script>
     </body>

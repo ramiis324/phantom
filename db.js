@@ -1157,9 +1157,15 @@
   }
 
   async function startProgressSync() {
-    if (MODE !== "supabase" || !me()) return false;
-    const changed = await pullProgress();
+    if (MODE !== "supabase") return false;
+    /* Hook the writes before the profile check. A page whose only use of
+       this module is the bookmark button (the Flash and defense players)
+       has nothing else calling in, so bailing out when the profile had not
+       loaded yet meant the watcher was never installed and that page's
+       favourites never reached the account. */
     watchProgress();
+    if (!me()) return false;
+    const changed = await pullProgress();
     scheduleProgressPush(800);
     return changed;
   }
