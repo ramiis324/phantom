@@ -26,7 +26,7 @@
 		</script>
 		<link rel="stylesheet" href="style.css?v=5" />
 		<link rel="stylesheet" href="messenger.css?v=3" />
-		<link rel="stylesheet" href="new.css?v=115" />
+		<link rel="stylesheet" href="new.css?v=119" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
@@ -304,6 +304,30 @@
 				<p class="acct-msg" id="link-pop-msg" aria-live="polite"></p>
 				<p class="acct-link-hint">The email comes from noreply@mail.app.supabase.io - it holds a sign-in link, or a one-time code if codes are switched on.</p>
 				<button class="acct-pop-alt" id="link-pop-later" type="button">Not now</button>
+			</div>
+		</div>
+
+		<!-- New themes announcement: signed-in accounts only, once. -->
+		<div class="acct-pop-overlay" id="themes-pop" hidden>
+			<div class="acct-pop themes-pop" role="dialog" aria-modal="true" aria-labelledby="themes-pop-title">
+				<button class="acct-pop-close" type="button" id="themes-pop-close" aria-label="Close">&times;</button>
+				<span class="acct-pop-icon" aria-hidden="true">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 0-18c4.97 0 9 3.58 9 8 0 2.21-1.79 4-4 4h-2.2a1.8 1.8 0 0 0-1.27 3.07c.3.3.47.7.47 1.13A1.8 1.8 0 0 1 12 21Z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/><circle cx="17" cy="11" r="1"/></svg>
+				</span>
+				<h2 class="acct-pop-title" id="themes-pop-title">28 themes to try</h2>
+				<div class="themes-pop-chips" aria-hidden="true">
+					<span style="background: var(--bg-aurora)"></span>
+					<span style="background: var(--bg-violet-hour)"></span>
+					<span style="background: var(--bg-midnight)"></span>
+					<span style="background: var(--bg-peach)"></span>
+					<span style="background: var(--bg-seafoam)"></span>
+					<span style="background: var(--bg-sherbet)"></span>
+				</div>
+				<p class="acct-pop-desc">The theme picker has three pages now: the originals, a new set of wallpapers like Aurora and Phosphor, and a Gradients page — each with its own colors and matching aurora glow.</p>
+				<div class="themes-pop-actions">
+					<button class="acct-pop-cta" type="button" id="themes-pop-go">Check it out</button>
+					<button class="themes-pop-later" type="button" id="themes-pop-later">I'm fine</button>
+				</div>
 			</div>
 		</div>
 		<main class="main">
@@ -865,30 +889,43 @@
 					</section>
 
 					<section class="settings-section">
-						<h2 class="settings-title">Accent Color</h2>
-						<div class="accent-picker" id="accent-picker">
-							<button class="accent-swatch active" data-accent="greenyellow" data-accent2="#212121" aria-label="Green" style="background: greenyellow"></button>
-							<button class="accent-swatch" data-accent="#4fc3f7" data-accent2="#1a1a1a" aria-label="Light Blue" style="background: #4fc3f7"></button>
-							<button class="accent-swatch" data-accent="#ffe066" data-accent2="#1a1a1a" aria-label="Yellow" style="background: #ffe066"></button>
-							<button class="accent-swatch" data-accent="#ff6fb5" data-accent2="#1a1a1a" aria-label="Pink" style="background: #ff6fb5"></button>
-							<button class="accent-swatch" data-accent="#b388ff" data-accent2="#1a1a1a" aria-label="Purple" style="background: #b388ff"></button>
-							<button class="accent-swatch" data-accent="#ff5555" data-accent2="#1a1a1a" aria-label="Red" style="background: #ff5555"></button>
-							<button class="accent-swatch" data-accent="#ffa040" data-accent2="#1a1a1a" aria-label="Orange" style="background: #ffa040"></button>
+						<h2 class="settings-title">Profile Color</h2>
+						<p class="settings-desc">Your own color. It shows on your avatar, level badge and on the leaderboard.</p>
+						<div class="accent-picker" id="profile-color-picker">
+							<button class="accent-swatch active" data-profile-color="greenyellow" aria-label="Green" style="background: greenyellow"></button>
+							<button class="accent-swatch" data-profile-color="#4fc3f7" aria-label="Light Blue" style="background: #4fc3f7"></button>
+							<button class="accent-swatch" data-profile-color="#ffe066" aria-label="Yellow" style="background: #ffe066"></button>
+							<button class="accent-swatch" data-profile-color="#ff6fb5" aria-label="Pink" style="background: #ff6fb5"></button>
+							<button class="accent-swatch" data-profile-color="#b388ff" aria-label="Purple" style="background: #b388ff"></button>
+							<button class="accent-swatch" data-profile-color="#ff5555" aria-label="Red" style="background: #ff5555"></button>
+							<button class="accent-swatch" data-profile-color="#ffa040" aria-label="Orange" style="background: #ffa040"></button>
+							<label class="accent-swatch swatch-custom" title="Custom color" aria-label="Custom profile color">
+								<input type="color" id="profile-color-custom" value="#8ef04a" aria-label="Custom profile color" />
+							</label>
 						</div>
 					</section>
 
 					<section class="settings-section">
 						<h2 class="settings-title">Theme</h2>
-						<p class="settings-desc">Light for a bright screen, dark for everything else.</p>
-						<div class="theme-options">
-							<button class="exit-option active" data-theme-mode="day">
-								<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-								<span>Light</span>
-							</button>
-							<button class="exit-option" data-theme-mode="night">
-								<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-								<span>Dark</span>
-							</button>
+						<p class="settings-desc">Pick a preset. Auto follows your system setting.</p>
+						<div class="theme-presets">
+							<div class="theme-presets-head">
+								<h3 class="theme-presets-title">
+									<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 9.5h.01M15.5 9.5h.01M8.5 14.5c.9 1.2 2 1.8 3.5 1.8s2.6-.6 3.5-1.8"/></svg>
+									Select a preset
+								</h3>
+								<div class="theme-filter" id="theme-filter" role="group" aria-label="Filter presets">
+									<button type="button" class="active" data-theme-filter="all">All</button>
+									<button type="button" data-theme-filter="dark">Dark</button>
+									<button type="button" data-theme-filter="light">Light</button>
+								</div>
+							</div>
+							<div class="preset-grid" id="preset-grid"></div>
+							<div class="theme-pager" id="theme-pager" role="group" aria-label="Preset pages">
+								<button type="button" data-theme-page="1" class="active" aria-pressed="true">1</button>
+								<button type="button" data-theme-page="2" aria-pressed="false">2</button>
+								<button type="button" data-theme-page="3" aria-pressed="false">3</button>
+							</div>
 						</div>
 					</section>
 
@@ -987,6 +1024,7 @@
 <div id="movies-view" class="movies-view" hidden>
 				<div class="movies-search">
 					<div class="explore-search-wrap">
+						<svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17L21 21"></path><path d="M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z"></path></svg>
 						<input type="text" id="movies-search" placeholder="Search movies..." autocomplete="off" />
 						<button class="explore-clear" id="movies-clear">&#10005;</button>
 					</div>
@@ -1216,8 +1254,11 @@ window.escHtml = function escHtml(s) {
 
 				dockBtns.forEach(b => b.addEventListener("click", () => goView(b.dataset.view)));
 
-				/* --- Theme --- Light and dark. The choice is persisted in
-				   theme-preference so a reload restores the same palette. */
+				/* --- Theme presets --- A preset is a whole look: wallpaper,
+				   surface palette and accent. "Auto" follows the system
+				   preference and keeps following it. The choice is persisted
+				   in theme-preset; theme-preference stays in sync for the
+				   other pages that still read it. */
 				function smoothTheme() {
 					const h = document.documentElement;
 					h.classList.add("theme-switching");
@@ -1225,24 +1266,180 @@ window.escHtml = function escHtml(s) {
 					h._tm = setTimeout(() => h.classList.remove("theme-switching"), 550);
 				}
 				window.__smoothTheme = smoothTheme;
-				function applyTheme(mode) {
-					const night = mode === "night";
-					body.classList.remove("theme-device");
-					body.classList.toggle("theme-night", night);
-					body.classList.toggle("theme-day", !night);
-					document.documentElement.classList.remove("theme-day", "theme-device", "theme-night");
-					try { localStorage.setItem("theme-preference", night ? "night" : "day"); } catch (e) {}
-					document.querySelectorAll("[data-theme-mode]").forEach(el => {
-						el.classList.toggle("active", el.dataset.themeMode === (night ? "night" : "day"));
+
+				const THEME_PRESETS = [
+					{ id: "auto", name: "Auto", mode: "auto" },
+					{ id: "dark", name: "Dark", mode: "dark" },
+					{ id: "light", name: "Light", mode: "light" },
+					{ id: "og-shine", name: "OG Shine", mode: "dark" },
+					{ id: "alpine", name: "Alpine", mode: "dark" },
+					{ id: "dune", name: "Dune", mode: "light" },
+					{ id: "tide", name: "Tide", mode: "dark" },
+					{ id: "blossom", name: "Blossom", mode: "light" },
+					{ id: "orbit", name: "Orbit", mode: "dark" },
+					{ id: "after-rain", name: "After rain", mode: "light" },
+					{ id: "ember", name: "Ember", mode: "dark" },
+					{ id: "kanagawa", name: "Kanagawa", mode: "light" },
+					/* Second page of the picker. */
+					{ id: "aurora", name: "Aurora", mode: "dark", page: 2 },
+					{ id: "violet-hour", name: "Violet hour", mode: "light", page: 2 },
+					{ id: "phosphor", name: "Phosphor", mode: "dark", page: 2 },
+					{ id: "mirage", name: "Mirage", mode: "light", page: 2 },
+					{ id: "nebula", name: "Nebula", mode: "dark", page: 2 },
+					{ id: "frost", name: "Frost", mode: "light", page: 2 },
+					{ id: "paper", name: "Paper", mode: "light", page: 2 },
+					{ id: "carbon", name: "Carbon", mode: "dark", page: 2 },
+					{ id: "peach", name: "Peach", mode: "light", page: 3, group: "Gradients" },
+					{ id: "midnight", name: "Midnight", mode: "dark", page: 3, group: "Gradients" },
+					{ id: "lilac", name: "Lilac", mode: "light", page: 3, group: "Gradients" },
+					{ id: "dusk", name: "Dusk", mode: "dark", page: 3, group: "Gradients" },
+					{ id: "seafoam", name: "Seafoam", mode: "light", page: 3, group: "Gradients" },
+					{ id: "graphite", name: "Graphite", mode: "dark", page: 3, group: "Gradients" },
+					{ id: "daybreak", name: "Daybreak", mode: "light", page: 3, group: "Gradients" },
+					{ id: "sherbet", name: "Sherbet", mode: "light", page: 3, group: "Gradients" }
+				];
+				const themeMedia = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+				function presetById(id) {
+					return THEME_PRESETS.find(p => p.id === id) || null;
+				}
+				function savedPresetId() {
+					let id = null;
+					try { id = localStorage.getItem("theme-preset"); } catch (e) {}
+					if (presetById(id)) return id;
+					let legacy = null;
+					try { legacy = localStorage.getItem("theme-preference"); } catch (e) {}
+					return legacy === "night" ? "dark" : "light";
+				}
+				function paintPresetSelection() {
+					const current = body.dataset.theme;
+					document.querySelectorAll("[data-preset]").forEach(el => {
+						const on = el.dataset.preset === current;
+						el.classList.toggle("active", on);
+						el.setAttribute("aria-pressed", on ? "true" : "false");
 					});
+				}
+				function applyThemePreset(id) {
+					const preset = presetById(id) || presetById("light");
+					const dark = preset.mode === "auto"
+						? !!(themeMedia && themeMedia.matches)
+						: preset.mode === "dark";
+					const mode = dark ? "night" : "day";
+					body.dataset.theme = preset.id;
+					body.classList.remove("theme-device");
+					body.classList.toggle("theme-night", dark);
+					body.classList.toggle("theme-day", !dark);
+					document.documentElement.classList.remove("theme-day", "theme-device", "theme-night");
+					try {
+						localStorage.setItem("theme-preset", preset.id);
+						localStorage.setItem("theme-preference", mode);
+					} catch (e) {}
+					paintPresetSelection();
 					if (window.applyTopoTheme) window.applyTopoTheme();
-					if (window.__setExploreAuroraLight) window.__setExploreAuroraLight(night ? "night" : "day");
-					if (window.__setHomeAuroraLight) window.__setHomeAuroraLight(night ? "night" : "day");
+					if (window.__setExploreAuroraLight) window.__setExploreAuroraLight(mode);
+					if (window.__setHomeAuroraLight) window.__setHomeAuroraLight(mode);
 					smoothTheme();
 				}
-				applyTheme((() => { try { return localStorage.getItem("theme-preference"); } catch (e) { return null; } })());
-				document.querySelectorAll("[data-theme-mode]").forEach(el =>
-					el.addEventListener("click", () => applyTheme(el.dataset.themeMode)));
+				window.applyThemePreset = applyThemePreset;
+				/* Legacy callers still speak day/night. */
+				window.applyTheme = mode => applyThemePreset(mode === "night" ? "dark" : "light");
+
+				(function buildPresetPicker() {
+					const grid = document.getElementById("preset-grid");
+					if (!grid) return;
+					const CHECK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+					const GROUP_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18"/></svg>';
+					let lastGroup = "";
+					THEME_PRESETS.forEach(preset => {
+						const page = preset.page || 1;
+						if (preset.group && preset.group !== lastGroup) {
+							lastGroup = preset.group;
+							const heading = document.createElement("div");
+							heading.className = "preset-group";
+							heading.dataset.page = String(page);
+							heading.innerHTML = GROUP_ICON + "<span>" + preset.group + "</span>";
+							grid.appendChild(heading);
+						}
+						const card = document.createElement("button");
+						card.type = "button";
+						card.className = "preset-card";
+						card.dataset.preset = preset.id;
+						card.dataset.mode = preset.mode;
+						card.dataset.page = String(page);
+						card.innerHTML =
+							'<span class="preset-preview" data-preview="' + preset.id + '" data-mode="' + preset.mode + '">' +
+								'<span class="pp-rail"><i></i><i></i><i></i><i></i></span>' +
+								'<span class="pp-stage">' +
+									'<span class="pp-card pp-card-a"><i class="pp-bar"></i><i class="pp-line soft"></i><i class="pp-line soft"></i><i class="pp-line soft short"></i></span>' +
+									'<span class="pp-card pp-card-b"><i class="pp-bar"></i><i class="pp-line soft"></i><i class="pp-line soft short"></i><i class="pp-pill"></i><i class="pp-dot"></i></span>' +
+								'</span>' +
+								'<span class="preset-check" aria-hidden="true">' + CHECK + '</span>' +
+							'</span>' +
+							'<span class="preset-name">' + preset.name + '</span>';
+						card.addEventListener("click", () => applyThemePreset(preset.id));
+						grid.appendChild(card);
+					});
+					let activePage = 1;
+					let activeFilter = "all";
+					const initial = presetById(savedPresetId());
+					if (initial) activePage = initial.page || 1;
+					const pager = document.getElementById("theme-pager");
+					function renderVisibility() {
+						const pageKey = String(activePage);
+						grid.querySelectorAll(".preset-card").forEach(card => {
+							card.hidden = card.dataset.page !== pageKey ||
+								(activeFilter !== "all" && card.dataset.mode !== activeFilter);
+						});
+						/* A group heading only makes sense for an unfiltered page. */
+						grid.querySelectorAll(".preset-group").forEach(heading => {
+							heading.hidden = heading.dataset.page !== pageKey || activeFilter !== "all";
+						});
+						if (pager) {
+							pager.querySelectorAll("[data-theme-page]").forEach(b => {
+								const on = Number(b.dataset.themePage) === activePage;
+								b.classList.toggle("active", on);
+								b.setAttribute("aria-pressed", on ? "true" : "false");
+							});
+						}
+					}
+					if (pager) {
+						pager.querySelectorAll("[data-theme-page]").forEach(b => {
+							b.addEventListener("click", () => {
+								activePage = Number(b.dataset.themePage) || 1;
+								renderVisibility();
+							});
+						});
+					}
+					const filter = document.getElementById("theme-filter");
+					if (filter) {
+						const buttons = filter.querySelectorAll("[data-theme-filter]");
+						buttons.forEach(b => b.addEventListener("click", () => {
+							activeFilter = b.dataset.themeFilter;
+							buttons.forEach(el => el.classList.toggle("active", el === b));
+							renderVisibility();
+						}));
+					}
+					renderVisibility();
+					paintPresetSelection();
+				})();
+
+				applyThemePreset(savedPresetId());
+				/* Auto keeps following the system. The media-query event is
+				   the main signal; focus/visibility is a cheap re-check for
+				   engines that swallow it (and for a scheme changed while
+				   the tab was in the background). */
+				function followSystemTheme() {
+					const current = presetById(body.dataset.theme);
+					if (current && current.mode === "auto") applyThemePreset("auto");
+				}
+				if (themeMedia) {
+					if (themeMedia.addEventListener) themeMedia.addEventListener("change", followSystemTheme);
+					else if (themeMedia.addListener) themeMedia.addListener(followSystemTheme);
+				}
+				window.addEventListener("focus", followSystemTheme);
+				document.addEventListener("visibilitychange", () => {
+					if (!document.hidden) followSystemTheme();
+				});
 
 				/* --- Dock position --- The floating dock sits on the bottom
 				   edge by default; left/right flip it into a vertical column
@@ -2169,29 +2366,54 @@ window.escHtml = function escHtml(s) {
 			async function addGames() {
 				if (window.lucide) lucide.createIcons();
 
-				/* --- Accent color --- */
+				/* --- Profile Color --- The color belongs to the person, not
+				   to the site: it paints the avatar, the level badge and the
+				   leaderboard entry. The site accent comes from the theme
+				   preset instead. The value stays under the old `accent` key
+				   so the other pages and the leaderboard keep reading it. */
 				const root = document.documentElement;
-				const swatches = document.querySelectorAll(".accent-swatch");
-				function applyAccent(accent, accent2) {
-					root.style.setProperty("--accent", accent);
-					root.style.setProperty("--accent2", accent2);
-					localStorage.setItem("accent", JSON.stringify({ accent, accent2 }));
+				const swatches = document.querySelectorAll("button.accent-swatch");
+				const customSwatch = document.getElementById("profile-color-custom");
+				function textOnProfileColor(color) {
+					const m = /^#?([0-9a-f]{6})$/i.exec(String(color).trim());
+					if (!m) return "#111";
+					const n = parseInt(m[1], 16);
+					const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+					return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#111" : "#fff";
+				}
+				function applyProfileColor(color) {
+					const text = textOnProfileColor(color);
+					root.style.setProperty("--profile", color);
+					root.style.setProperty("--profile2", text);
+					try { localStorage.setItem("accent", JSON.stringify({ accent: color, accent2: text })); } catch (e) {}
 					if (window.__smoothTheme) window.__smoothTheme();
-					if (window.__setExploreGradientAccent) window.__setExploreGradientAccent();
 				}
-				const savedAccent = JSON.parse(localStorage.getItem("accent") || "{}");
-				if (savedAccent.accent) {
-					applyAccent(savedAccent.accent, savedAccent.accent2);
-					swatches.forEach(s => s.classList.toggle("active", s.dataset.accent === savedAccent.accent));
+				function paintProfileSwatches(color) {
+					const want = String(color || "").trim().toLowerCase();
+					swatches.forEach(s => s.classList.toggle("active", s.dataset.profileColor === want));
 				}
+				let savedProfile = { accent: "greenyellow" };
+				try { savedProfile = JSON.parse(localStorage.getItem("accent") || "{}") || savedProfile; } catch (e) {}
+				const profileColor = savedProfile.accent || "greenyellow";
+				applyProfileColor(profileColor);
+				paintProfileSwatches(profileColor);
+				if (customSwatch && /^#[0-9a-f]{6}$/i.test(profileColor)) customSwatch.value = profileColor;
 				swatches.forEach(s => {
 					s.addEventListener("click", () => {
-						swatches.forEach(x => x.classList.remove("active"));
-						s.classList.add("active");
-						applyAccent(s.dataset.accent, s.dataset.accent2);
+						applyProfileColor(s.dataset.profileColor);
+						paintProfileSwatches(s.dataset.profileColor);
 						if (window.pushAccent) window.pushAccent();
 					});
 				});
+				if (customSwatch) {
+					customSwatch.addEventListener("input", () => {
+						applyProfileColor(customSwatch.value);
+						paintProfileSwatches(customSwatch.value);
+					});
+					customSwatch.addEventListener("change", () => {
+						if (window.pushAccent) window.pushAccent();
+					});
+				}
 
 				/* --- Clear all favorites --- */
 				document.getElementById("clear-favorites-btn").addEventListener("click", () => {
@@ -3401,6 +3623,36 @@ const c = window.exploreGameCat(item.game);
 				   home backdrop and the loading screen stay in step. */
 				let homeAurora = null;
 				let homeAuroraTried = false;
+				/* Aurora tint per preset. The accent-derived stops work, but
+				   these keep each backdrop unmistakably its own hue: Tide
+				   green, Kanagawa blue, Orbit purple, and so on. */
+				const THEME_AURORA = {
+					"og-shine": ["#7CFFE4", "#12B39B", "#0A5E52"],
+					alpine: ["#B7E39A", "#3E8A5C", "#123A26"],
+					dune: ["#FFD9A0", "#D9853B", "#7A3E14"],
+					tide: ["#A7FFE4", "#22C58B", "#0B5E4E"],
+					blossom: ["#FFD1E3", "#E0559A", "#8E2154"],
+					orbit: ["#C9B4FF", "#6D3CE0", "#2B1266"],
+					"after-rain": ["#D6E8DE", "#6FA98C", "#2F5B45"],
+					ember: ["#FFC98F", "#F07A2A", "#7A2F0B"],
+					kanagawa: ["#A9C6FF", "#3E6FD1", "#12305E"],
+					aurora: ["#CFF7D8", "#5FD08A", "#1E5C3A"],
+					"violet-hour": ["#E0CFFF", "#8E6BFF", "#3B1E9E"],
+					phosphor: ["#CFFFC2", "#4BFF7A", "#0E5E2A"],
+					mirage: ["#FFE2B8", "#E09A55", "#7A3E14"],
+					nebula: ["#FFC9A0", "#F0803C", "#3A2A7A"],
+					frost: ["#DDEBFF", "#7FB0F0", "#2B4F8F"],
+					paper: ["#FBF2DD", "#C9A27A", "#6B4630"],
+					carbon: ["#BFD2FF", "#5C86F0", "#1E2C52"],
+					peach: ["#FFD6BF", "#F0805A", "#8A2E1A"],
+					midnight: ["#C9D2FF", "#6D82F5", "#1A2460"],
+					lilac: ["#E0D2FF", "#8B6CF0", "#3A1E8A"],
+					dusk: ["#FFC2D8", "#C64A8E", "#5A1A3A"],
+					seafoam: ["#D3FBEE", "#4FBFA6", "#1E5E4E"],
+					graphite: ["#F0F0F3", "#B9BAC2", "#4A4C52"],
+					daybreak: ["#D6E6FF", "#5A8AF0", "#1E3C7A"],
+					sherbet: ["#FFD3E2", "#F0709A", "#8A2050"]
+				};
 				const LOADER_ACCENT_STOPS = {
 					greenyellow: ["#7EFF5E", "#16A34A", "#0E7A34"],
 					"#4fc3f7": ["#BDEBFF", "#2F9DF7", "#8FCAE8"],
@@ -3437,12 +3689,24 @@ const c = window.exploreGameCat(item.game);
 					return "#" + seg.map(v => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
 				}
 				function loaderAccentStops() {
-					let accent = "greenyellow";
-					try { accent = (JSON.parse(localStorage.getItem("accent") || "{}").accent) || "greenyellow"; } catch (e) {}
-					const stops = LOADER_ACCENT_STOPS[accent] || LOADER_ACCENT_STOPS.greenyellow;
+					/* The theme preset owns the page accent now, so the aurora
+					   follows whatever --accent resolves to on the body. The
+					   hand-tuned trios stay for the named colors (and for the
+					   profile colors older pages still hand around). */
+					let accent = "";
+					try { accent = getComputedStyle(document.body).getPropertyValue("--accent").trim(); } catch (e) {}
+					if (!accent) {
+						try { accent = (JSON.parse(localStorage.getItem("accent") || "{}").accent) || "greenyellow"; } catch (e) {}
+					}
+					const stops = THEME_AURORA[document.body.dataset.theme || ""] ||
+						LOADER_ACCENT_STOPS[accent] ||
+						(/^#[0-9a-f]{6}$/i.test(accent)
+							? [vividHex(accent, 0.80), vividHex(accent, 0.62), vividHex(accent, 0.46)]
+							: LOADER_ACCENT_STOPS.greenyellow);
 					const day = /(^|\s)theme-day(\s|$)/.test(document.body.className);
 					return day ? stops.map((c, i) => vividHex(c, DAY_STOP_LIGHTNESS[i] || 0.68)) : stops.slice();
 				}
+				window.__themeAuroraStops = loaderAccentStops;
 				function mountHomeAurora() {
 					if (homeAuroraTried) return;
 					if (!window.createAurora) { console.warn("[home] createAurora missing"); return; }
@@ -3517,7 +3781,13 @@ const c = window.exploreGameCat(item.game);
 
 
 					const played = loadJSON("rcdn-playtime", "{}");
-					const names = loadJSON("bookmarks", "[]");
+					/* Drop junk entries (older toolbox builds could save an empty
+					   name), so they don't count as "unavailable" games. */
+					const rawNames = loadJSON("bookmarks", "[]");
+					const names = rawNames.filter(n => typeof n === "string" && n);
+					if (names.length !== rawNames.length) {
+						try { localStorage.setItem("bookmarks", JSON.stringify(names)); } catch (e) {}
+					}
 					const games = names
 						.map(clean => gameOf(clean))
 						.filter(Boolean);
@@ -3572,6 +3842,69 @@ const c = window.exploreGameCat(item.game);
 					});
 				};
 
+			})();
+		</script>
+		<script>
+			/* --- New themes announcement ---
+			   A one-time card pointing signed-in accounts at the theme
+			   picker. Signed-out visitors get the sign-in card instead, so
+			   this never stacks on top of it. */
+			(function themesIntro() {
+				const KEY = "rcdn-themes-intro-v1";
+				const overlay = document.getElementById("themes-pop");
+				if (!overlay) return;
+				try { if (localStorage.getItem(KEY) === "1") return; } catch (e) {}
+				const closeBtn = document.getElementById("themes-pop-close");
+				const goBtn = document.getElementById("themes-pop-go");
+				const laterBtn = document.getElementById("themes-pop-later");
+				let shown = false;
+
+				function dismiss() {
+					overlay.hidden = true;
+					try { localStorage.setItem(KEY, "1"); } catch (e) {}
+				}
+				function openThemes() {
+					dismiss();
+					if (window.showView) window.showView("settings");
+					const page = document.querySelector('#theme-pager [data-theme-page="2"]');
+					if (page) page.click();
+					const panel = document.querySelector(".theme-presets");
+					if (panel) setTimeout(() => {
+						/* Clear the floating logo/card at the top. */
+						const y = panel.getBoundingClientRect().top + window.scrollY - 96;
+						window.scrollTo(0, Math.max(0, y));
+					}, 80);
+				}
+				closeBtn.addEventListener("click", dismiss);
+				laterBtn.addEventListener("click", dismiss);
+				goBtn.addEventListener("click", openThemes);
+				overlay.addEventListener("click", (e) => { if (e.target === overlay) dismiss(); });
+				document.addEventListener("keydown", (e) => {
+					if (e.key === "Escape" && !overlay.hidden) dismiss();
+				});
+
+				/* The session read can land after this script runs, so retry a
+				   few times until it answers. */
+				function attempt(left) {
+					if (shown || !window.DB || !DB.authState) return;
+					DB.authState().then((st) => {
+						if (shown) return;
+						if (!st || !st.signedIn) {
+							if (left > 0) setTimeout(() => attempt(left - 1), 1200);
+							return;
+						}
+						/* Don't stack on the sign-in card. */
+						const gate = document.getElementById("acct-popup");
+						if (gate && !gate.hidden) return;
+						shown = true;
+						overlay.hidden = false;
+						goBtn.focus({ preventScroll: true });
+					}).catch(() => {
+						if (left > 0) setTimeout(() => attempt(left - 1), 1200);
+					});
+				}
+				window.checkThemesIntro = () => attempt(0);
+				setTimeout(() => attempt(8), 800);
 			})();
 		</script>
 		<script>

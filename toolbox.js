@@ -6,13 +6,18 @@
   "use strict";
 
   var P = window.PHANTOM || {};
+  /* The page publishes window.PHANTOM only after it has looked the game up
+     (an async fetch), which is later than this script runs. Read it lazily:
+     a snapshot taken at load has an empty cleanName, so bookmarks were saved
+     under "" and never matched a game on the home page. */
+  function page() { return window.PHANTOM || P; }
   var CFG = {
-    cleanName: P.cleanName || "",
-    title: P.title || "",
-    genre: P.genre || "",
-    stats: P.stats || null,
-    gameFrame: P.gameFrame || function () { return null; },
-    container: P.auroraContainer || null
+    get cleanName() { return page().cleanName || ""; },
+    get title() { return page().title || ""; },
+    get genre() { return page().genre || ""; },
+    get stats() { return page().stats || null; },
+    get gameFrame() { return page().gameFrame || function () { return null; }; },
+    get container() { return page().auroraContainer || null; }
   };
 
   function store(key, def) {
@@ -126,6 +131,7 @@
 
   function openToolbox() {
     if (!overlay) return;
+    syncBookmarkUI();
     overlay.classList.add("open");
     pauseGame();
     if (window.grainient && window.grainient.showProfileCard) window.grainient.showProfileCard();
@@ -485,6 +491,23 @@
     var label = btn.querySelector(".tb-opt-label");
     if (label) label.textContent = now ? "Remove bookmark" : "Bookmark game";
   });
+
+  /* The page publishes the game name after this script runs, so the state
+     painted while building the overlay can be stale. Re-read it once the
+     context is ready and whenever the toolbox opens. */
+  function syncBookmarkUI() {
+    var on = isBookmarked();
+    var quick = overlay.querySelector('[data-opt="bookmark"]');
+    if (quick) {
+      quick.classList.toggle("on", on);
+      quick.title = on ? "Remove bookmark" : "Bookmark game";
+      var label = quick.querySelector(".tb-opt-label");
+      if (label) label.textContent = on ? "Remove bookmark" : "Bookmark game";
+    }
+    var bar = document.getElementById("ctrl-bookmark");
+    if (bar) bar.classList.toggle("bookmarked", on);
+  }
+  window.addEventListener("phantom-context-ready", syncBookmarkUI);
 
   /* ---------------- init ---------------- */
   function init() {
