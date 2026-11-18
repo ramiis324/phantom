@@ -326,7 +326,7 @@
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<script src="supabase-config.js?v=3"></script>
 		<script src="online.js?v=1"></script>
-		<script src="db.js?v=57"></script>
+		<script src="db.js?v=61"></script>
 		<script src="grainient-loader.js?v=7"></script>
 		<script src="toolbox.js?v=21"></script>
     <script>
@@ -848,7 +848,9 @@
                 pollBusy = false;
             }
             function startPoll() {
-                setInterval(sweep, 15000);
+                /* Realtime is the primary path; this sweep only recovers from a
+               dropped socket, so it does not need to run often. */
+            setInterval(sweep, 60000);
                 document.addEventListener("visibilitychange", function () {
                     if (document.visibilityState === "visible") sweep();
                 });
@@ -1152,6 +1154,7 @@
             }
             setInterval(function () {
                 if (currentId || !DB.getActiveIncomingCall) return;
+                if (DB._callsRt === "subscribed") return;
                 DB.getActiveIncomingCall().then(function (c) {
                     if (c && !currentId && c.calleeId === myId() && c.status === "ringing") {
                         DB.getProfileById(c.callerId).then(function (p) { offer(c, p); }).catch(function () { offer(c, null); });

@@ -160,7 +160,7 @@
     const kick = () => { if (document.visibilityState === "visible") ptFlush(); };
     document.addEventListener("visibilitychange", kick);
     window.addEventListener("pagehide", () => { ptFlush(); });
-    ptTimer = setInterval(ptFlush, 60_000);
+    ptTimer = setInterval(() => { if (document.visibilityState === "visible") ptFlush(); }, 60_000);
     /* Game pages only ever sync playtime, so hook the map/quests/bookmarks
        push here too — otherwise hours played on player.html would stay in
        that origin's localStorage and never reach the account. */
@@ -931,12 +931,21 @@
    * ------------------------------------------------------------------ */
   const PROGRESS_KEYS = { playtime: "rcdn-playtime", bookmarks: "bookmarks", quests: "rcdn-quests" };
   const PROGRESS_MS = 1500;
+  /* The game pages add to `rcdn-playtime` every 5s while a game runs, and
+     every such write used to schedule a full upsert of the row. That is one
+     write every few seconds for every open tab, each one creating a new row
+     version plus its TOAST chunks — which is what grew the database far past
+     the data it holds. A one-minute floor writes the same data (pull merges
+     per game with max()) and still flushes immediately on hide/close. */
+  const PROGRESS_MIN_MS = 60 * 1000;
   let progressWatching = false;
   let progressTimer = null;
   let progressBusy = false;
   let progressAgain = false;
   let progressApplying = false;
   let progressMissing = false;
+  let progressSig = "";
+  let progressLastWrite = 0;
 
   /* PostgREST reports a missing table as a 404 in the schema cache
      (PGRST205), not as Postgres' 42P01, so both have to count as "this
@@ -983,25 +992,49 @@
     return out;
   }
 
+  function nextProgressSlot() {
+    return Math.max(0, progressLastWrite + PROGRESS_MIN_MS - Date.now());
+  }
+
   function scheduleProgressPush(ms) {
     if (MODE !== "supabase" || !me()) return;
     clearTimeout(progressTimer);
-    progressTimer = setTimeout(pushProgress, Number.isFinite(ms) ? ms : PROGRESS_MS);
+    const wait = Math.max(Number.isFinite(ms) ? ms : PROGRESS_MS, nextProgressSlot());
+    progressTimer = setTimeout(pushProgress, wait);
   }
 
-  async function pushProgress() {
+  async function pushProgress(force) {
     const p = me();
     if (!p || MODE !== "supabase" || progressMissing) return null;
     if (progressBusy) { progressAgain = true; return null; }
+
+    const playtime = readJSONish(PROGRESS_KEYS.playtime, {});
+    const bookmarks = readList(PROGRESS_KEYS.bookmarks);
+    const quests = readList(PROGRESS_KEYS.quests);
+
+    /* Nothing changed since the last successful write: writing the same row
+       again only produces a dead tuple. */
+    let sig = "";
+    try { sig = JSON.stringify([playtime, bookmarks, quests]); } catch (e) { sig = ""; }
+    if (!force && sig && sig === progressSig) return null;
+    if (!force && Date.now() < progressLastWrite + PROGRESS_MIN_MS) {
+      scheduleProgressPush(PROGRESS_MIN_MS);
+      return null;
+    }
+
     progressBusy = true;
     try {
       const { error } = await sb.from("profile_data").upsert({
         user_id: p.id,
-        playtime: readJSONish(PROGRESS_KEYS.playtime, {}),
-        bookmarks: readList(PROGRESS_KEYS.bookmarks),
-        quests: readList(PROGRESS_KEYS.quests),
+        playtime,
+        bookmarks,
+        quests,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
+      if (!error) {
+        progressSig = sig;
+        progressLastWrite = Date.now();
+      }
       if (error) {
         if (progressMissingError(error)) {
           progressMissing = true;
@@ -1101,9 +1134,9 @@
       }
     };
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") pushProgress();
+      if (document.visibilityState === "hidden") pushProgress(true);
     });
-    window.addEventListener("pagehide", () => { pushProgress(); });
+    window.addEventListener("pagehide", () => { pushProgress(true); });
   }
 
   async function startProgressSync() {
@@ -1293,6 +1326,27 @@
     if (presenceStatusCb) { try { presenceStatusCb(s); } catch (e) {} }
   }
 
+  /* One open tab per browser writes the heartbeat. Every tab used to write
+     the same profiles row every 30s, so the row gained a new version — and
+     was rebroadcast through the realtime publication — once per tab, all
+     day. The lease is renewed on each beat, so a closed tab hands the beat
+     to another tab immediately instead of leaving presence to go stale. */
+  const PRESENCE_TAB_KEY = "rcdn-presence-writer";
+  const PRESENCE_TAB_ID = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+
+  function ownsPresenceBeat() {
+    try {
+      const now = Date.now();
+      let rec = null;
+      try { rec = JSON.parse(localStorage.getItem(PRESENCE_TAB_KEY) || "null"); } catch (e) {}
+      if (rec && rec.tab !== PRESENCE_TAB_ID && now - Number(rec.at || 0) < 45 * 1000) return false;
+      localStorage.setItem(PRESENCE_TAB_KEY, JSON.stringify({ tab: PRESENCE_TAB_ID, at: now }));
+      return true;
+    } catch (e) {
+      return true; /* no storage: keep beating rather than never beating */
+    }
+  }
+
   function presenceBeat(force) {
     if (MODE !== "supabase") return;
     const meId = myId();
@@ -1309,7 +1363,9 @@
   function startPresence() {
     if (MODE !== "supabase" || presenceInterval) return;
     presenceBeat(true);
-    presenceInterval = setInterval(() => presenceBeat(true), 30 * 1000);
+    presenceInterval = setInterval(() => {
+      if (ownsPresenceBeat()) presenceBeat(true);
+    }, 30 * 1000);
   }
 
   function profileStatus(r) {
@@ -1585,11 +1641,30 @@
      sidebar preview, unread dot and recency order all read this off the
      conversation object, which the conversation group rows do not carry. */
   async function lastMessagesOf(convIds) {
+    const ids = (convIds || []).filter(Boolean);
     const lastOf = {};
-    /* one query per conversation: a shared "newest 400" query would miss a
-       group that has been quiet while a busy one produced newer messages */
+    if (!ids.length) return lastOf;
+
+    /* One request for the whole list. This used to be a query per
+       conversation on every sidebar refresh, which was the single largest
+       source of API calls in the app. A conversation quiet enough that its
+       newest message is outside the window is backfilled below (and only
+       that one), so the preview is never lost. */
+    try {
+      const { data } = await sb
+        .from("messages")
+        .select("id, conversation_id, sender_id, content, type, meta, created_at")
+        .in("conversation_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(Math.min(1000, ids.length * 10));
+      (data || []).forEach((m) => {
+        if (!lastOf[m.conversation_id]) lastOf[m.conversation_id] = msgRowToMsg(m);
+      });
+    } catch (e) {}
+
+    const missing = ids.filter((id) => !lastOf[id]);
     await Promise.all(
-      (convIds || []).map(async (id) => {
+      missing.map(async (id) => {
         try {
           const { data } = await sb
             .from("messages")
@@ -1739,6 +1814,31 @@
     }, 500);
   }
 
+  /* Presence heartbeats are `profiles` UPDATEs, and every one of them was
+     waking every connected tab into a full DM/group reload. With a roomful
+     of people online that is one fan-out per person per 30s, and the
+     responses — not the stored rows — are what blew through the egress
+     allowance. Coalesce them: at most one profile-driven refresh per client
+     per minute, which is far faster than presence needs to look live. */
+  const PROFILE_NOTIFY_MS = 60 * 1000;
+  let profileNotifyAt = 0;
+  let profileNotifyTimer = null;
+
+  function notifyProfiles() {
+    const wait = Math.max(0, PROFILE_NOTIFY_MS - (Date.now() - profileNotifyAt));
+    if (wait === 0) {
+      profileNotifyAt = Date.now();
+      notify();
+      return;
+    }
+    if (profileNotifyTimer) return;
+    profileNotifyTimer = setTimeout(() => {
+      profileNotifyTimer = null;
+      profileNotifyAt = Date.now();
+      notify();
+    }, wait);
+  }
+
   function setupRealtime() {
     if (MODE !== "supabase") return;
     if (rtSetup) return;
@@ -1757,7 +1857,7 @@
       ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "profiles" }, notify);
       ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (p) => {
         if (p.new && p.new.id === myId()) return; // own presence heartbeat — not interesting
-        notify();
+        notifyProfiles();
       });
       ch.on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, notify);
       ch.on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, notify);

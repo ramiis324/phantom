@@ -1018,7 +1018,7 @@
 		<script src="https://unpkg.com/lucide@latest"></script>
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<script src="supabase-config.js?v=3"></script>
-			<script src="db.js?v=59"></script>
+			<script src="db.js?v=61"></script>
 			<script src="online.js?v=3"></script>
 		<script src="messenger.js?v=5"></script>
 		<script>
@@ -4530,6 +4530,9 @@ const c = window.exploreGameCat(item.game);
 
 				let unreadTimer = null;
 				async function refreshUnreadOnly() {
+					/* A hidden tab has no badge to paint; the events that matter
+					   (messages) arrive by realtime and are picked up on return. */
+					if (document.visibilityState !== "visible") return;
 					if (window.DB && DB.getDmList) {
 						try {
 							const dms = await DB.getDmList();
@@ -5724,9 +5727,24 @@ const c = window.exploreGameCat(item.game);
 					renderGsIcons();
 					renderGsPreview();
 				});
-				if (gsUpload) gsUpload.addEventListener("change", (e) => {
+				if (gsUpload) gsUpload.addEventListener("change", async (e) => {
 					const file = e.target.files && e.target.files[0];
+					gsUpload.value = "";
 					if (!file) return;
+					if (!/^image\//i.test(file.type || "")) { gsHint.textContent = "Pick an image file."; return; }
+					/* The icon is stored in conversations.avatar, which every group
+					   refresh reads in full. Uploading keeps the picture out of that
+					   jsonb row; only a small image may be inlined. */
+					if (window.DB && DB.uploadChatImage) {
+						const url = await DB.uploadChatImage(file);
+						if (url) {
+							gsIcon = { type: "image", value: url };
+							renderGsIcons();
+							renderGsPreview();
+							return;
+						}
+					}
+					if (file.size > 256 * 1024) { gsHint.textContent = "That picture is too large. Try a smaller one."; return; }
 					const reader = new FileReader();
 					reader.onload = () => {
 						gsIcon = { type: "image", value: String(reader.result || "") };
@@ -7621,6 +7639,10 @@ const c = window.exploreGameCat(item.game);
 				   Fast enough to feel responsive if realtime isn't delivering. */
 				async function pollIncomingCall() {
 					if (!window.DB || !DB.getActiveIncomingCall) return;
+					/* With the realtime socket up, this poll only duplicated
+					   traffic the subscription already delivers; it is a fallback
+					   for a dropped connection, not the primary path. */
+					if (DB._callsRt === "subscribed") return;
 					try {
 						const c = await DB.getActiveIncomingCall();
 						if (!c || c.calleeId !== getMyId() || c.status !== "ringing") {
@@ -7634,8 +7656,8 @@ const c = window.exploreGameCat(item.game);
 						offerIncoming(c);
 					} catch (e) { lastPollInfo = "err"; console.warn("[calls] poll", e); renderCallsDebug(); }
 				}
-				setInterval(pollIncomingCall, 2000);
-				setTimeout(pollIncomingCall, 500);
+				setInterval(pollIncomingCall, 12000);
+				setTimeout(pollIncomingCall, 1500);
 				pollIncomingCall();
 				/* a reload keeps you in the call this tab was in */
 				setTimeout(() => { if (!call) resumeCall(); }, 1000);
@@ -7931,7 +7953,7 @@ const c = window.exploreGameCat(item.game);
 					} catch (e) {}
 				}
 				if (window.DB && DB.onRealtime) {
-					try { DB.onRealtime(() => scheduleUnreadRefresh(700)); } catch (e) {}
+					try { DB.onRealtime(() => { if (document.visibilityState === "visible") scheduleUnreadRefresh(1200); }); } catch (e) {}
 				}
 				// initial background check so badge can appear without opening Messages tab
 				if (document.readyState === "complete") scheduleUnreadRefresh(800);
