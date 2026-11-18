@@ -946,6 +946,7 @@
   let progressMissing = false;
   let progressSig = "";
   let progressLastWrite = 0;
+  let progressUrgent = false;
 
   /* PostgREST reports a missing table as a 404 in the schema cache
      (PGRST205), not as Postgres' 42P01, so both have to count as "this
@@ -974,9 +975,12 @@
     let raw = "";
     try { raw = JSON.stringify(value); } catch (e) { return; }
     try { if (localStorage.getItem(key) === raw) return; } catch (e) {}
+    /* progressApplying must be cleared even if the write throws (a full
+       quota does). Leaving it set silenced the bookmark/quest watcher for
+       the rest of the session, so nothing after it ever reached the
+       account. */
     progressApplying = true;
-    try { localStorage.setItem(key, raw); } catch (e) {}
-    progressApplying = false;
+    try { localStorage.setItem(key, raw); } catch (e) {} finally { progressApplying = false; }
   }
   function listKeyOfBookmark(v) { return String(v == null ? "" : v).trim().toLowerCase(); }
   function listKeyOfQuest(v) { return v && typeof v === "object" ? String(v.clean || "").trim().toLowerCase() : ""; }
@@ -996,10 +1000,16 @@
     return Math.max(0, progressLastWrite + PROGRESS_MIN_MS - Date.now());
   }
 
-  function scheduleProgressPush(ms) {
+  /* `urgent` is for user actions (a bookmark, a quest change) rather than
+     the playtime tick: they are rare, so they should not sit behind the
+     once-a-minute floor that keeps gameplay writes from flooding the row. */
+  function scheduleProgressPush(ms, urgent) {
     if (MODE !== "supabase" || !me()) return;
     clearTimeout(progressTimer);
-    const wait = Math.max(Number.isFinite(ms) ? ms : PROGRESS_MS, nextProgressSlot());
+    const wait = urgent
+      ? (Number.isFinite(ms) ? ms : PROGRESS_MS)
+      : Math.max(Number.isFinite(ms) ? ms : PROGRESS_MS, nextProgressSlot());
+    if (urgent) progressUrgent = true;
     progressTimer = setTimeout(pushProgress, wait);
   }
 
@@ -1007,6 +1017,9 @@
     const p = me();
     if (!p || MODE !== "supabase" || progressMissing) return null;
     if (progressBusy) { progressAgain = true; return null; }
+
+    const urgent = progressUrgent;
+    progressUrgent = false;
 
     const playtime = readJSONish(PROGRESS_KEYS.playtime, {});
     const bookmarks = readList(PROGRESS_KEYS.bookmarks);
@@ -1017,7 +1030,7 @@
     let sig = "";
     try { sig = JSON.stringify([playtime, bookmarks, quests]); } catch (e) { sig = ""; }
     if (!force && sig && sig === progressSig) return null;
-    if (!force && Date.now() < progressLastWrite + PROGRESS_MIN_MS) {
+    if (!force && !urgent && Date.now() < progressLastWrite + PROGRESS_MIN_MS) {
       scheduleProgressPush(PROGRESS_MIN_MS);
       return null;
     }
@@ -1039,6 +1052,8 @@
         if (progressMissingError(error)) {
           progressMissing = true;
           console.warn("[db] profile_data is missing — run the updated supabase-schema.sql");
+        } else if (error.code === "42501" || error.code === "401" || error.code === "403") {
+          console.warn("[db] pushProgress refused by RLS — the profile_data policies in supabase-schema.sql are not applied");
         } else {
           console.warn("[db] pushProgress", error);
         }
@@ -1130,7 +1145,9 @@
       nativeSet.call(this, key, value);
       if (progressApplying) return;
       if (key === PROGRESS_KEYS.playtime || key === PROGRESS_KEYS.bookmarks || key === PROGRESS_KEYS.quests) {
-        scheduleProgressPush();
+        /* Bookmarks and quests are deliberate clicks, so save them now
+           instead of waiting for the playtime throttle to come round. */
+        scheduleProgressPush(undefined, key !== PROGRESS_KEYS.playtime);
       }
     };
     document.addEventListener("visibilitychange", () => {
