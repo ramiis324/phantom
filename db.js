@@ -35,6 +35,12 @@
   const LS_KEY = "social.v1";
   const JERRY_ID = "jerry";
 
+  /* A message or a call counts toward the daily streak (streak.js owns the
+     store and the 1-minute playtime rule). */
+  function creditStreak(reason) {
+    try { if (window.RCDNStreak) window.RCDNStreak.credit(reason); } catch (e) {}
+  }
+
   /* login.html stores a Storage object path in profiles.avatar_path (e.g.
      "<uuid>-1790816720652-images.jpg"), not a URL. Anything rendering that
      field has to ask Storage for the public URL first, or <img> gets a 404. */
@@ -1383,12 +1389,22 @@
       .then(null, (e) => console.warn("[db] presence", e));
   }
 
+  /* Presence only has to stay fresher than PRESENCE_ONLINE_MS, so a visible
+     tab beats every 45s and a hidden one stops beating at all. Each beat is
+     a new `profiles` row version, and while that table is in the realtime
+     publication one write is re-sent to every subscribed tab — the fan-out,
+     not the row, is what costs egress. */
+  const PRESENCE_BEAT_MS = 45 * 1000;
   function startPresence() {
     if (MODE !== "supabase" || presenceInterval) return;
     presenceBeat(true);
     presenceInterval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       if (ownsPresenceBeat()) presenceBeat(true);
-    }, 30 * 1000);
+    }, PRESENCE_BEAT_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") presenceBeat(true);
+    });
   }
 
   function profileStatus(r) {
@@ -1876,21 +1892,40 @@
           notify();
         }
       });
-      ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, notify);
-      ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "profiles" }, notify);
-      ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (p) => {
-        if (p.new && p.new.id === myId()) return; // own presence heartbeat — not interesting
-        notifyProfiles();
-      });
-      ch.on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, notify);
-      ch.on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, notify);
-      ch.on("postgres_changes", { event: "*", schema: "public", table: "conversation_members" }, notify);
       ch.subscribe((status) => {
         if (status === "SUBSCRIBED") console.info("[db] realtime subscribed");
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") console.warn("[db] realtime status:", status);
       });
     } catch (e) {
       console.warn("[db] realtime setup failed", e);
+    }
+  }
+
+  /* Presence dots, friend lists and group membership only matter where they
+     are drawn, so they get their own subscription. The messenger opens it;
+     game pages never did anything with those events and no longer receive
+     them at all. */
+  let rtSocial = false;
+  function setupSocialRealtime() {
+    if (MODE !== "supabase" || rtSocial) return;
+    rtSocial = true;
+    try {
+      const ch = sb.channel("db-social");
+      ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, notify);
+      ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "profiles" }, notify);
+      ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (p) => {
+        if (p.new && p.new.id === myId()) return; // own heartbeat
+        notifyProfiles();
+      });
+      ch.on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, notify);
+      ch.on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, notify);
+      ch.on("postgres_changes", { event: "*", schema: "public", table: "conversation_members" }, notify);
+      ch.subscribe((status) => {
+        if (status === "SUBSCRIBED") console.info("[db] social realtime subscribed");
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") console.warn("[db] social realtime status:", status);
+      });
+    } catch (e) {
+      console.warn("[db] social realtime setup failed", e);
     }
   }
 
@@ -2363,9 +2398,11 @@
       return MODE === "supabase" ? getMessagesRemote(convId) : localGetMessages(convId);
     },
     async sendMessage(convId, text, msgId, extra) {
-      return MODE === "supabase"
-        ? sendMessageRemote(convId, text, msgId, extra)
-        : localSendRemote(convId, text, msgId, extra);
+      const sent = MODE === "supabase"
+        ? await sendMessageRemote(convId, text, msgId, extra)
+        : await localSendRemote(convId, text, msgId, extra);
+      creditStreak("message");
+      return sent;
     },
     async editMessage(id, text) {
       return MODE === "supabase" ? editMessageRemote(id, text) : editMessageLocal(id, text);
@@ -2465,10 +2502,12 @@
              can look up the room of the call the inviter is already in */
           const r2 = await sb.from("calls").insert({ ...row, answered_at: INVITE_MARK }).select().single();
           if (r2.error) { console.warn("[db] startCall", r2.error); throw new Error(r2.error.message || "insert failed"); }
+          creditStreak("call");
           return callRowToCall(r2.data);
         }
         console.warn("[db] startCall", error); throw new Error(error.message || "insert failed");
       }
+      creditStreak("call");
       return callRowToCall(data);
     },
     async updateCall(callId, patch) {
@@ -2478,6 +2517,8 @@
       if (patch.answered) row.answered_at = new Date().toISOString();
       const { data, error } = await sb.from("calls").update(row).eq("id", callId).select().single();
       if (error) { console.warn("[db] updateCall", error); return null; }
+      /* Accepting / joining is the half of a call that counts for the streak. */
+      if (patch.status && /^(accepted|active|connected)$/i.test(patch.status)) creditStreak("call");
       return callRowToCall(data);
     },
     async getCall(callId) {
@@ -2604,10 +2645,18 @@
       try { sb.removeChannel(ch); } catch (e) { console.warn("[db] leaveCallChannel", e); }
     },
 
-    onRealtime(cb) {
+    /* `{ social: true }` also subscribes to profile / friend / group
+       changes. The messenger asks for that; the unread badge and the
+       in-game message pill only need new messages. */
+    onRealtime(cb, opts) {
       realtimeCb = cb;
       setupRealtime();
+      if (opts && opts.social) setupSocialRealtime();
     },
+
+    /* Open the profile/friend/group feed. Idempotent; called when the
+       messenger is actually shown, not when a page loads. */
+    requestSocialRealtime: setupSocialRealtime,
 
     onMessage(cb) {
       messageCb = cb;

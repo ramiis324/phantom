@@ -231,6 +231,9 @@
     hideMovies();
     document.body.classList.add("messenger-mode");
     setRail("messages");
+    /* Presence dots and membership only need to stream while this panel is
+       on screen; every other view stays on the messages-only channel. */
+    if (DB.requestSocialRealtime) DB.requestSocialRealtime();
     // First load: show the loading bar while data is fetched from the backend.
     if (!rootEl.querySelector(".rail-b")) rootEl.innerHTML = loadingHtml();
     profile = await DB.getProfile();

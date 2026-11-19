@@ -312,11 +312,19 @@ body.dock-right .dock-btn:focus-visible::before {
 /* The wrapper owns the floating position so the card itself can animate
    its width on load and so the quest dropdown can be a detached sibling
    that still matches the card's width. */
-.acct-wrap {
+/* The bar owns the fixed top-right position so the streak chip can sit left
+   of the card without hovering it opening the card's quest dropdown. */
+.acct-bar {
   position: fixed;
   top: 16px;
   right: 24px;
   z-index: 70;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+.acct-wrap {
+  position: relative;
 }
 /* Invisible bridge across the gap between card and dropdown so the
    hover never drops while the pointer travels between them. */
@@ -418,8 +426,8 @@ body.theme-night .account-status-dot { border-color: #1b1b1f; }
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: var(--profile2, #fff);
-  background: var(--profile, var(--accent, #22c55e));
+  color: var(--t-accent-2, #fff);
+  background: var(--t-accent, var(--accent, #22c55e));
   padding: 2px 7px;
   border-radius: 999px;
   line-height: 1.4;
@@ -682,7 +690,7 @@ body.theme-night .acct-pop-alt:hover { color: #f5f5f5; }
 }
 
 @media (max-width: 560px) {
-  .acct-wrap { top: 12px; right: 16px; }
+  .acct-bar { top: 12px; right: 16px; }
   .account-meta { width: 132px; }
   .account-name { max-width: 88px; }
 }
@@ -1317,7 +1325,7 @@ body.theme-day #explore-grid .kind { color: #555; }
 }
 .accent-swatch:hover { transform: translateY(-2px); }
 .accent-swatch.active {
-  box-shadow: 0 0 0 3px var(--panel-bg, #fff), 0 0 0 6px var(--profile, var(--accent, #111827));
+  box-shadow: 0 0 0 3px var(--panel-bg, #fff), 0 0 0 6px var(--t-accent, var(--accent, #111827));
 }
 
 /* Game Controls + Theme option buttons (icon + title) */
@@ -2570,7 +2578,7 @@ body.theme-day .show-row:hover { background: #f6f7f9; }
   max-width: 520px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   padding: 8px 0;
 }
 /* Leaderboard split: you + quests + your games (left) | global (right) */
@@ -2580,7 +2588,7 @@ body.theme-day .show-row:hover { background: #f6f7f9; }
   gap: 40px;
   width: 100%;
   max-width: 1120px;
-  margin-top: 26px;
+  margin-top: 12px;
   align-items: start;
 }
 .lb-left {
@@ -2595,7 +2603,56 @@ body.theme-day .show-row:hover { background: #f6f7f9; }
   flex-direction: column;
   gap: 4px;
 }
-.lb-right { gap: 12px; }
+/* The board is its own scroll area: tabs stay on top, and your pinned
+   position plus the page buttons stay on screen underneath it. */
+.lb-right {
+  gap: 4px;
+  height: clamp(320px, calc(100vh - 250px), 760px);
+  min-height: 0;
+}
+.lb-right .lb-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 6px 8px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+.lb-right .lb-list::-webkit-scrollbar { width: 8px; }
+.lb-right .lb-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+}
+.lb-pinned-wrap {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lb-pinned-wrap[hidden] { display: none; }
+/* Page buttons and the Playtime/Levels toggle share the row under the
+   board: numbers on the left, toggle on the right. */
+.lb-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lb-foot .lb-pager {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  padding-top: 0;
+}
+.lb-foot .lb-tabs { flex: none; }
+@media (max-width: 520px) {
+  .lb-foot { flex-wrap: wrap; }
+  .lb-foot .lb-pager { width: 100%; }
+}
+@media (max-width: 900px) {
+  .lb-right { height: auto; }
+  .lb-right .lb-list { overflow: visible; }
+}
 .lb-panel .lb-list {
   max-width: none;
 }
@@ -3320,7 +3377,7 @@ body.theme-night .lb-quests {
   align-self: center;
   display: inline-flex;
   gap: 2px;
-  padding: 4px;
+  padding: 3px;
   background: #eceef1;
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 999px;
@@ -3331,8 +3388,8 @@ body.theme-night .lb-tabs {
 }
 .lb-tab-pill {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: 3px;
+  bottom: 3px;
   left: 0;
   width: 0;
   border-radius: 999px;
@@ -3344,12 +3401,12 @@ body.theme-night .lb-tabs {
   z-index: 1;
   width: auto;
   height: auto;
-  padding: 8px 20px;
+  padding: 4px 16px;
   background: transparent;
   border: none;
   border-radius: 999px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 800;
   color: #6b7280;
   cursor: pointer;
@@ -4882,8 +4939,10 @@ body[data-theme="light"] {
   --t-line: rgba(17, 24, 39, 0.1);
   --t-dock: rgba(255, 255, 255, 0.92);
   --t-fade: #f1f2f5;
-  --t-accent: greenyellow;
-  --t-accent-2: #16200f;
+  /* Plain light/dark has no palette of its own, so the profile colour is
+     the accent there. */
+  --t-accent: var(--profile, greenyellow);
+  --t-accent-2: var(--profile2, #16200f);
 }
 body[data-theme="auto"].theme-night,
 body[data-theme="dark"] {
@@ -4895,8 +4954,10 @@ body[data-theme="dark"] {
   --t-line: rgba(255, 255, 255, 0.09);
   --t-dock: rgba(22, 22, 26, 0.92);
   --t-fade: #0c0c0f;
-  --t-accent: greenyellow;
-  --t-accent-2: #16200f;
+  /* Plain light/dark has no palette of its own, so the profile colour is
+     the accent there. */
+  --t-accent: var(--profile, greenyellow);
+  --t-accent-2: var(--profile2, #16200f);
 }
 body[data-theme="og-shine"] {
   --t-bg: var(--bg-og-shine);
@@ -5043,8 +5104,8 @@ body[data-theme][data-theme] .dock-btn::before { background: var(--t-text); bord
 /* Account card + quest dropdown */
 body[data-theme][data-theme] .account-card { background: var(--t-surface); border-color: var(--t-line); color: var(--t-text); }
 body[data-theme][data-theme] .account-card:hover { border-color: var(--t-text-2); color: var(--t-text); }
-body[data-theme][data-theme] .account-avatar,
-body[data-theme][data-theme] .account-level { background: var(--profile, var(--t-accent)); color: var(--profile2, #fff); }
+body[data-theme][data-theme] .account-avatar { background: var(--profile, var(--t-accent)); color: var(--profile2, #fff); }
+body[data-theme][data-theme] .account-level { background: var(--t-accent); color: var(--t-accent-2, #fff); }
 body[data-theme][data-theme] .account-name { color: var(--t-text); }
 body[data-theme][data-theme] .account-role { color: var(--t-text-2); }
 body[data-theme][data-theme] .account-xp { background: var(--t-surface-2); }
@@ -5774,8 +5835,8 @@ body[data-theme][data-theme] .lb-me-pic {
   color: var(--profile2, #111827);
 }
 body[data-theme][data-theme] .lb-me-level {
-  background: var(--profile, var(--t-accent));
-  color: var(--profile2, #111827);
+  background: var(--t-accent);
+  color: var(--t-accent-2, #111827);
 }
 body[data-theme][data-theme] .lb-quests {
   background: var(--t-surface);
@@ -5834,4 +5895,121 @@ body[data-theme][data-theme] .lb-empty { color: var(--t-text-2); }
 .themes-pop-later:hover {
   background: var(--t-surface-2, #f3f4f6);
   border-color: var(--t-text-2, #9ca3af);
+}
+
+/* ============================================================
+   Daily streak chip — square flame button left of the account
+   card; grows left on hover to spell out the count.
+   ============================================================ */
+.streak-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+  align-self: center;
+  box-sizing: border-box;
+  width: 56px;
+  height: 56px;
+  padding: 0 16px;
+  overflow: hidden;
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.18);
+  color: #111827;
+  font: inherit;
+  cursor: default;
+  transition: width 0.26s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s ease,
+    background-color 0.18s ease, color 0.18s ease;
+}
+.streak-chip:hover,
+.streak-chip:focus-visible {
+  width: 176px;
+  border-color: #9ca3af;
+  outline: none;
+}
+/* Count is always readable; hovering swaps it for the full phrase. */
+.streak-count {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--t-accent, #f97316);
+  color: var(--t-accent-2, #111);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  transition: opacity 0.16s ease;
+}
+.streak-chip:hover .streak-count,
+.streak-chip:focus-visible .streak-count { opacity: 0; }
+.streak-empty .streak-count { opacity: 0.55; }
+.streak-label {
+  order: 1;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity 0.18s ease 0.04s, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.streak-chip:hover .streak-label,
+.streak-chip:focus-visible .streak-label {
+  opacity: 1;
+  transform: none;
+}
+.streak-icon {
+  display: flex;
+  flex: none;
+  order: 2;
+  color: #f97316;
+}
+.streak-empty .streak-icon { opacity: 0.55; }
+
+body.theme-night .streak-chip {
+  background: #1b1b1f;
+  border-color: #333;
+  color: #e5e7eb;
+  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.7);
+}
+body.theme-night .streak-chip:hover { border-color: #4b5563; }
+
+body[data-theme][data-theme] .streak-chip {
+  background: var(--t-surface);
+  border-color: var(--t-line);
+  color: var(--t-text);
+}
+body[data-theme][data-theme] .streak-chip:hover,
+body[data-theme][data-theme] .streak-chip:focus-visible { border-color: var(--t-text-2); }
+body[data-theme][data-theme] .streak-icon { color: var(--t-accent); }
+
+/* ------------------------------------------------------------
+   Aurora fallback: WebGL2 refused, so the header keeps the same
+   three theme colours as slow-drifting CSS blooms.
+   ------------------------------------------------------------ */
+.home-aurora-host.aurora-fallback {
+  background:
+    radial-gradient(60% 85% at 22% 8%, var(--aur-1, #7cff67) 0%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(70% 90% at 78% 26%, var(--aur-2, #5227ff) 0%, rgba(255, 255, 255, 0) 64%),
+    radial-gradient(95% 95% at 50% 104%, var(--aur-3, #0e7a34) 0%, rgba(255, 255, 255, 0) 70%);
+  background-size: 165% 165%;
+  animation: aurora-drift 22s ease-in-out infinite alternate;
+}
+@keyframes aurora-drift {
+  0% { background-position: 0% 0%, 100% 100%, 50% 50%; }
+  100% { background-position: 32% 18%, 64% 58%, 40% 28%; }
+}
+
+@media (max-width: 640px) {
+  .streak-chip { width: 48px; height: 48px; padding: 0 12px; }
+  .streak-chip:hover,
+  .streak-chip:focus-visible { width: 152px; }
 }

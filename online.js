@@ -81,15 +81,30 @@
 	var sb;
 	try { sb = window.supabase.createClient(url, key); } catch (e) { return; }
 
-	/* One entry per open tab; Realtime drops it on close/heartbeat timeout. */
+	/* One presence entry per browser, not per tab. A brand-new key on every
+	   page load left the previous entry behind until Realtime timed it out,
+	   and every presence sync then carried the whole accumulated state to
+	   every client — so the more people reloaded, the bigger each sync got.
+	   A key kept in localStorage collapses all tabs and reloads onto one
+	   entry. */
+	var PRESENCE_KEY_STORE = "rcdn-online-key";
+	function presenceKey() {
+		try {
+			var k = localStorage.getItem(PRESENCE_KEY_STORE);
+			if (!k) {
+				k = "b-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 9);
+				localStorage.setItem(PRESENCE_KEY_STORE, k);
+			}
+			return k;
+		} catch (e) {
+			return "b-" + Math.random().toString(36).slice(2, 9);
+		}
+	}
+
 	var chan;
 	try {
 		chan = sb.channel("rcdn-online", {
-			config: {
-				presence: {
-					key: "tab-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 9)
-				}
-			}
+			config: { presence: { key: presenceKey() } }
 		});
 	} catch (e) { return; }
 
@@ -100,9 +115,20 @@
 		} catch (e) {}
 	});
 
+	function trackSelf() { try { chan.track({}); } catch (e) {} }
+	function untrackSelf() { try { chan.untrack(); } catch (e) {} }
+
 	chan.subscribe(function (status) {
 		if (status !== "SUBSCRIBED") return;
-		try { chan.track({ at: Date.now() }); } catch (e) {}
+		if (document.visibilityState === "visible") trackSelf();
+	});
+
+	/* Background tabs stop counting. Their entry is part of the state every
+	   other client syncs, and the number means "people here", not "tabs
+	   left open overnight". */
+	document.addEventListener("visibilitychange", function () {
+		if (document.visibilityState === "visible") trackSelf();
+		else untrackSelf();
 	});
 
 	window.addEventListener("pagehide", function () {

@@ -11,6 +11,18 @@
         <link rel="icon" type="image/png" href="favicon.png?v=1" />
 
         <title>Phantom</title>
+        <script>
+            /* Some inbound links arrive with tracking junk tacked on, e.g.
+               flash.html?helixjump&i=1. The game lookup reads the whole query
+               as the name, so put the URL back in canonical form first. */
+            (function () {
+                var q = location.search;
+                if (q.indexOf("&") === -1) return;
+                var name = q.slice(1).split("&")[0];
+                if (!name) return;
+                location.replace(location.pathname + "?" + name + (location.hash || ""));
+            })();
+        </script>
         <link rel="stylesheet" href="toolbox.css?v=19" />
 
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -210,18 +222,6 @@
     </style>
     </head>
     <body>
-        <script>
-            (function () {
-                try {
-                    const saved = JSON.parse(localStorage.getItem("accent") || "{}");
-                    if (saved.accent) {
-                        const r = document.documentElement.style;
-                        r.setProperty("--accent", saved.accent);
-                        r.setProperty("--accent2", saved.accent2 || "#212121");
-                    }
-                } catch (e) {}
-            })();
-        </script>
         <div class="loading" id="loading">
             <div class="bar"><div class="bar-fill"></div></div>
         </div>
@@ -258,9 +258,24 @@
 		<script src="cdn.js?v=5"></script>
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<script src="supabase-config.js?v=3"></script>
-		<script src="online.js?v=1"></script>
-		<script src="db.js?v=63"></script>
-		<script src="grainient-loader.js?v=7"></script>
+		<script src="online.js?v=4"></script>
+		<script src="db.js?v=65"></script>
+		<script src="grainient-loader.js?v=21"></script>
+		<script src="streak.js?v=1"></script>
+        <script>
+            /* The theme owns the accent in here too; the profile color only
+               paints avatars, so it no longer shades the controls. */
+            (function () {
+                try {
+                    const t = window.grainient && window.grainient.theme;
+                    if (t) {
+                        const r = document.documentElement.style;
+                        r.setProperty("--accent", t.accent);
+                        r.setProperty("--accent2", t.onAccent);
+                    }
+                } catch (e) {}
+            })();
+        </script>
         <script src="ruffle/ruffle.js"></script>
         <script src="toolbox.js?v=23"></script>
 
@@ -301,7 +316,7 @@
             };
 
             function loadGame(games, player) {
-                const flashName = location.search.split("?")[1];
+                const flashName = (location.search.split("?")[1] || "").split("&")[0];
                 const isGame = games.find((game) => clean(game.gameName) == flashName);
 
                 if (isGame) {
@@ -456,7 +471,7 @@
             });
 
             const bookmarkBtn = document.getElementById("bookmark-btn");
-            const urlGameName = location.search.split("?")[1];
+            const urlGameName = (location.search.split("?")[1] || "").split("&")[0];
             if (urlGameName) {
                 /* The controls-bar button opens the toolbox; its icon is the
                    toolbox crate and is never filled, even for bookmarked
@@ -548,7 +563,7 @@
             (function () {
                 var KEY = "rcdn-playtime";
                 var LP_KEY = "rcdn-lastplayed";
-                var name = (location.search.split("?")[1] || "").toLowerCase();
+                var name = ((location.search.split("?")[1] || "").split("&")[0]).toLowerCase();
                 if (!name) return;
                 var start = null;
                 var timer = null;
@@ -566,6 +581,8 @@
                         var m = loadMap(KEY);
                         m[name] = (m[name] || 0) + secs;
                         try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (e) {}
+                        /* A minute of play counts the day. */
+                        if (window.RCDNStreak) window.RCDNStreak.play(secs);
                     }
                     start = now;
                 }

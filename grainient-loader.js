@@ -176,14 +176,76 @@ void main(){
 		"#ffa040":    { colors: ["#FFD28A", "#FF9F3C", "#E09A5E"], bar: ["#ffffff", "#FFE4BD"] }
 	};
 
+	/* --- Theme colours only ---
+	   The shader, its grain and its timing are untouched; the three colours
+	   it mixes come from the preset the visitor picked. Light and dark keep
+	   the profile palette below, because those two modes use the profile
+	   colour as the site accent. Mirrors THEME_AURORA in index.html. */
+	var THEME_GLOW = {
+		"og-shine": ["#7CFFE4", "#12B39B", "#0A5E52"],
+		alpine: ["#B7E39A", "#3E8A5C", "#123A26"],
+		dune: ["#FFD9A0", "#D9853B", "#7A3E14"],
+		tide: ["#5FA8F0", "#22C58B", "#0B5E4E"],
+		blossom: ["#FFD1E3", "#E0559A", "#8E2154"],
+		orbit: ["#C9B4FF", "#6D3CE0", "#2B1266"],
+		"after-rain": ["#D6E8DE", "#6FA98C", "#2F5B45"],
+		ember: ["#FFC98F", "#F07A2A", "#7A2F0B"],
+		kanagawa: ["#A9C6FF", "#3E6FD1", "#12305E"],
+		aurora: ["#CFF7D8", "#5FD08A", "#1E5C3A"],
+		"violet-hour": ["#E0CFFF", "#8E6BFF", "#3B1E9E"],
+		phosphor: ["#CFFFC2", "#4BFF7A", "#0E5E2A"],
+		mirage: ["#FFE2B8", "#E09A55", "#7A3E14"],
+		nebula: ["#FFC9A0", "#F0803C", "#3A2A7A"],
+		frost: ["#DDEBFF", "#7FB0F0", "#2B4F8F"],
+		paper: ["#FBF2DD", "#C9A27A", "#6B4630"],
+		carbon: ["#BFD2FF", "#5C86F0", "#1E2C52"],
+		peach: ["#FFD6BF", "#F0805A", "#8A2E1A"],
+		midnight: ["#C9D2FF", "#6D82F5", "#1A2460"],
+		lilac: ["#E0D2FF", "#8B6CF0", "#3A1E8A"],
+		dusk: ["#FFC2D8", "#C64A8E", "#5A1A3A"],
+		seafoam: ["#D3FBEE", "#4FBFA6", "#1E5E4E"],
+		graphite: ["#F0F0F3", "#B9BAC2", "#4A4C52"],
+		daybreak: ["#D6E6FF", "#5A8AF0", "#1E3C7A"],
+		sherbet: ["#FFD3E2", "#F0709A", "#8A2050"]
+	};
+
+	/* Presets whose page is light: white ink would vanish on the pale wash,
+	   so the bar and wordmark flip to black there. */
+	var THEME_DAY = {
+		dune: 1, blossom: 1, "after-rain": 1, kanagawa: 1, "violet-hour": 1,
+		mirage: 1, frost: 1, paper: 1, peach: 1, lilac: 1, seafoam: 1,
+		daybreak: 1, sherbet: 1
+	};
+
+	function contrastText(hex) {
+		var c = hexToRgb(hex);
+		return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) > 0.6 ? "#111" : "#fff";
+	}
+
 	var accent = "greenyellow";
 	try { accent = (JSON.parse(localStorage.getItem("accent") || "{}").accent) || "greenyellow"; } catch (e) {}
 	var pal = PALETTES[accent] || PALETTES.greenyellow;
-	FRAG.uColor1 = hexToRgb(pal.colors[0]);
-	FRAG.uColor2 = hexToRgb(pal.colors[1]);
-	FRAG.uColor3 = hexToRgb(pal.colors[2]);
-	var fallbackGrad = "linear-gradient(135deg," + pal.colors[0] + "," + pal.colors[1] + " 45%," + pal.colors[2] + ")";
-	var barGrad = "linear-gradient(90deg," + pal.bar[0] + "," + pal.bar[1] + ")";
+
+	var preset = "";
+	try { preset = localStorage.getItem("theme-preset") || ""; } catch (e) {}
+	var glow = THEME_GLOW[preset] || pal.colors;
+	var lightTheme = !!THEME_DAY[preset];
+
+	FRAG.uColor1 = hexToRgb(glow[0]);
+	FRAG.uColor2 = hexToRgb(glow[1]);
+	FRAG.uColor3 = hexToRgb(glow[2]);
+	var inkColor = lightTheme ? "#0b0b0d" : "#fff";
+	var trackColor = lightTheme ? "rgba(11,11,13,.18)" : "rgba(255,255,255,.28)";
+	var fallbackGrad = "linear-gradient(135deg," + glow[0] + "," + glow[1] + " 45%," + glow[2] + ")";
+	/* Same colours, but drifting: this only paints when WebGL2 is missing. */
+	var fallbackLayers = [
+		"radial-gradient(70% 80% at 18% 12%, " + glow[0] + " 0%, rgba(255,255,255,0) 62%)",
+		"radial-gradient(80% 90% at 86% 78%, " + glow[1] + " 0%, rgba(255,255,255,0) 64%)",
+		"radial-gradient(120% 100% at 50% 118%, " + glow[2] + " 0%, rgba(255,255,255,0) 72%)",
+		fallbackGrad
+	].join(",");
+	/* Solid fill: white on dark backdrops, black on light ones. */
+	var barGrad = lightTheme ? "#0b0b0d" : "#ffffff";
 
 	function build() {
 		if (overlay) return;
@@ -191,12 +253,15 @@ void main(){
 		var lvColor = accent === "greenyellow" ? "#0b0b0d" : "#0b0b0d";
 		var style = document.createElement("style");
 		style.textContent = [
-			"#grainient{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:150;pointer-events:none;}",
-			"#grainient.is-fallback{background:" + fallbackGrad + ";}",
+			/* The gradient is painted under the canvas, so a refused or lost WebGL
+			   context can never leave a blank page behind the wordmark. */
+			"#grainient{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:150;pointer-events:none;background:" + fallbackLayers + ";background-size:170% 170%;}",
+			"#grainient.is-fallback{animation:grain-drift 18s ease-in-out infinite alternate;}",
+			"@keyframes grain-drift{0%{background-position:0% 0%,100% 100%,50% 60%,0% 0%;}100%{background-position:35% 25%,65% 60%,40% 30%,0% 0%;}}",
 			".grainient-content{position:fixed;inset:0;z-index:151;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;pointer-events:none;opacity:0;transition:opacity .5s ease;}",
 			".grainient-content.is-on{opacity:1;}",
-			".grainient-title{font-size:3rem;font-weight:600;color:#fff;}",
-			".grainient-bar{width:220px;height:5px;border-radius:999px;background:rgba(255,255,255,.28);overflow:hidden;}",
+			".grainient-title{font-size:3rem;font-weight:600;color:" + inkColor + ";}",
+			".grainient-bar{width:220px;height:5px;border-radius:999px;background:" + trackColor + ";overflow:hidden;}",
 			".grainient-fill{height:100%;width:0%;border-radius:999px;background:" + barGrad + ";transition:width .12s linear;}",
 
 			/* --- Profile card: drops in with the loader, frost like #controls,
@@ -235,17 +300,26 @@ void main(){
 		gl = canvas.getContext("webgl2", { alpha: true, antialias: false });
 		if (!gl) {
 			canvas.classList.add("is-fallback");
+			console.warn("[loader] WebGL2 unavailable (check chrome://gpu) - using the CSS gradient");
 			return;
 		}
 
 		var dpr = Math.min(window.devicePixelRatio || 1, 2);
 
 		var program = gl.createProgram();
-		gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
-		gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
-		gl.linkProgram(program);
-		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-			console.error("Grainient: " + gl.getProgramInfoLog(program));
+		try {
+			gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
+			gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+			gl.linkProgram(program);
+			if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+				throw new Error(gl.getProgramInfoLog(program) || "program link failed");
+			}
+		} catch (err) {
+			/* Some drivers refuse the shader outright; keep the CSS gradient
+			   instead of returning into a blank page. */
+			console.error("Grainient: " + (err && err.message ? err.message : err));
+			gl = null;
+			canvas.classList.add("is-fallback");
 			return;
 		}
 		gl.useProgram(program);
@@ -442,7 +516,26 @@ void main(){
 
 	build();
 
+	/* A reload or navigation before the loader finishes would otherwise leave
+	   this context to GC. Firefox keeps those alive across a soft reload and
+	   eventually refuses every new context (EXHAUSTED_GL_DRIVERS), which
+	   switches the loader and the home aurora to their CSS fallbacks. */
+	function releaseContext() {
+		cancelAnimationFrame(rafId);
+		cancelAnimationFrame(barRaf);
+		if (gl) {
+			var lose = gl.getExtension("WEBGL_lose_context");
+			if (lose) lose.loseContext();
+			gl = null;
+		}
+	}
+	window.addEventListener("pagehide", releaseContext);
+	window.addEventListener("beforeunload", releaseContext);
+
 	global.grainient = {
+		/* Resolved accent so the players can paint their controls from the
+		   same colour the loader is using. */
+		theme: { accent: glow[1], onAccent: contrastText(glow[1]), stops: glow.slice() },
 		setup: function (opts) {
 			if (!overlay || done) return;
 			opts = opts || {};

@@ -26,7 +26,7 @@
 		</script>
 		<link rel="stylesheet" href="style.css?v=5" />
 		<link rel="stylesheet" href="messenger.css?v=3" />
-		<link rel="stylesheet" href="new.css?v=119" />
+		<link rel="stylesheet" href="new.css?v=130" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
@@ -235,7 +235,23 @@
 			</button>
 		</nav>
 
-		<div class="acct-wrap" id="acct-wrap">
+		<!-- Right-hand cluster: streak button then the account card. The
+		     chip sits outside .acct-wrap on purpose, so hovering it does not
+		     open the quest dropdown the card owns. -->
+		<div class="acct-bar">
+			<!-- Daily streak: square flame button left of the card, expands
+			     left on hover to spell out the count. -->
+			<button class="streak-chip" id="streak-chip" type="button" aria-label="Daily streak">
+				<span class="streak-count" id="streak-count">0</span>
+				<span class="streak-label" id="streak-label">0 day streak</span>
+				<span class="streak-icon" aria-hidden="true">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+						<path d="M12 21.5008C16.4183 21.5008 20 17.9191 20 13.5008C20 10.5397 18.3912 6.60684 16 4.33478L14 6.99915L10.5 2.49915C7 4.99915 4 9.59526 4 13.5008C4 17.9191 7.58172 21.5008 12 21.5008Z"></path>
+						<path d="M12 18.4991C14.2091 18.4991 16 16.4844 16 13.9991C16 13.2081 15.8186 12.4648 15.5 11.8189L13.5 13.4991L10.5 9.49811C9.5 10.4981 8 12.1106 8 13.9991C8 16.4844 9.79086 18.4991 12 18.4991Z"></path>
+					</svg>
+				</span>
+			</button>
+			<div class="acct-wrap" id="acct-wrap">
 			<button class="account-card" type="button" aria-label="Account" aria-expanded="false">
 				<span class="account-avatar-wrap">
 					<span class="account-avatar" aria-hidden="true">
@@ -256,6 +272,7 @@
 
 			<!-- Detached hover panel: three quest rows, one progress bar each. -->
 			<div class="acct-drop" id="acct-drop" role="list" aria-label="Quests"></div>
+			</div>
 		</div>
 
 		<!-- Live visitor count. Explore corner only; the number itself is
@@ -639,13 +656,16 @@
 						</div>
 					</div>
 					<div class="lb-panel lb-right">
-						<div class="lb-tabs" id="lb-tabs" role="tablist" aria-label="Leaderboard type">
-							<span class="lb-tab-pill" id="lb-tab-pill" aria-hidden="true"></span>
-							<button class="lb-tab active" type="button" data-tab="playtime" role="tab" aria-selected="true">Playtime</button>
-							<button class="lb-tab" type="button" data-tab="levels" role="tab" aria-selected="false">Levels</button>
+												<div class="lb-list" id="leaderboard-list"></div>
+						<div class="lb-pinned-wrap" id="lb-pinned" hidden></div>
+						<div class="lb-foot">
+							<nav class="lb-pager" id="lb-pager" aria-label="Leaderboard pages" hidden></nav>
+							<div class="lb-tabs" id="lb-tabs" role="tablist" aria-label="Leaderboard type">
+								<span class="lb-tab-pill" id="lb-tab-pill" aria-hidden="true"></span>
+								<button class="lb-tab active" type="button" data-tab="playtime" role="tab" aria-selected="true">Playtime</button>
+								<button class="lb-tab" type="button" data-tab="levels" role="tab" aria-selected="false">Levels</button>
+							</div>
 						</div>
-						<div class="lb-list" id="leaderboard-list"></div>
-						<nav class="lb-pager" id="lb-pager" aria-label="Leaderboard pages" hidden></nav>
 					</div>
 				</div>
 			</section>
@@ -890,7 +910,7 @@
 
 					<section class="settings-section">
 						<h2 class="settings-title">Profile Color</h2>
-						<p class="settings-desc">Your own color. It shows on your avatar, level badge and on the leaderboard.</p>
+						<p class="settings-desc">Your own color. It paints your avatar picture; everything else follows your theme.</p>
 						<div class="accent-picker" id="profile-color-picker">
 							<button class="accent-swatch active" data-profile-color="greenyellow" aria-label="Green" style="background: greenyellow"></button>
 							<button class="accent-swatch" data-profile-color="#4fc3f7" aria-label="Light Blue" style="background: #4fc3f7"></button>
@@ -1056,9 +1076,33 @@
 		<script src="https://unpkg.com/lucide@latest"></script>
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<script src="supabase-config.js?v=3"></script>
-			<script src="db.js?v=63"></script>
-			<script src="online.js?v=3"></script>
-		<script src="messenger.js?v=5"></script>
+			<script src="db.js?v=65"></script>
+			<script src="streak.js?v=1"></script>
+			<script src="online.js?v=4"></script>
+		<script src="messenger.js?v=6"></script>
+		<script>
+			/* --- Daily streak chip --- Send a message, join a call or play a
+			   minute of a game to count the day. */
+			(function () {
+				const chip = document.getElementById("streak-chip");
+				const label = document.getElementById("streak-label");
+				const count = document.getElementById("streak-count");
+				if (!chip || !label || !count || !window.RCDNStreak) return;
+				function paint() {
+					const n = window.RCDNStreak.days();
+					label.textContent = n + " day streak";
+					count.textContent = n > 99 ? "99+" : String(n);
+					chip.classList.toggle("streak-empty", n === 0);
+					chip.setAttribute("aria-label", n + " day streak");
+					chip.title = n
+						? n + " day streak. Send a message, join a call or play a minute today to extend it."
+						: "Send a message, join a call or play a minute of a game to start a streak.";
+				}
+				window.addEventListener("rcdn-streak-change", paint);
+				document.addEventListener("visibilitychange", paint);
+				paint();
+			})();
+		</script>
 		<script>
 			(async function () {
 				/* --- Playtime helpers (shared) --- */
@@ -1338,6 +1382,7 @@ window.escHtml = function escHtml(s) {
 					if (window.applyTopoTheme) window.applyTopoTheme();
 					if (window.__setExploreAuroraLight) window.__setExploreAuroraLight(mode);
 					if (window.__setHomeAuroraLight) window.__setHomeAuroraLight(mode);
+					if (window.__paintAuroraFallback) window.__paintAuroraFallback();
 					smoothTheme();
 				}
 				window.applyThemePreset = applyThemePreset;
@@ -2367,10 +2412,10 @@ window.escHtml = function escHtml(s) {
 				if (window.lucide) lucide.createIcons();
 
 				/* --- Profile Color --- The color belongs to the person, not
-				   to the site: it paints the avatar, the level badge and the
-				   leaderboard entry. The site accent comes from the theme
-				   preset instead. The value stays under the old `accent` key
-				   so the other pages and the leaderboard keep reading it. */
+				   to the site: it paints the avatar picture (card and
+				   leaderboard) and nothing else; badges and chrome come from
+				   the theme preset. The value stays under the old `accent`
+				   key so the players keep reading it for the avatar. */
 				const root = document.documentElement;
 				const swatches = document.querySelectorAll("button.accent-swatch");
 				const customSwatch = document.getElementById("profile-color-custom");
@@ -3630,7 +3675,7 @@ const c = window.exploreGameCat(item.game);
 					"og-shine": ["#7CFFE4", "#12B39B", "#0A5E52"],
 					alpine: ["#B7E39A", "#3E8A5C", "#123A26"],
 					dune: ["#FFD9A0", "#D9853B", "#7A3E14"],
-					tide: ["#A7FFE4", "#22C58B", "#0B5E4E"],
+					tide: ["#5FA8F0", "#22C58B", "#0B5E4E"],
 					blossom: ["#FFD1E3", "#E0559A", "#8E2154"],
 					orbit: ["#C9B4FF", "#6D3CE0", "#2B1266"],
 					"after-rain": ["#D6E8DE", "#6FA98C", "#2F5B45"],
@@ -3728,8 +3773,27 @@ const c = window.exploreGameCat(item.game);
 							homeAurora.setColors(loaderAccentStops());
 						};
 						window.__setExploreGradientAccent = () => { homeAurora.setColors(loaderAccentStops()); };
+					} else {
+						/* WebGL2 refused (hardware acceleration off, GPU blocklisted,
+						   or software rendering disabled). Keep the header glowing
+						   with the same theme colours as a drifting CSS gradient. */
+						window.__auroraBroken = true;
+						console.warn("[home] WebGL2 unavailable (check chrome://gpu) - using the CSS aurora");
+						paintAuroraFallback();
 					}
 				}
+				/* Same three stops the shader would have used. */
+				function paintAuroraFallback() {
+					if (!window.__auroraBroken) return;
+					const host = document.getElementById("games-gradient");
+					if (!host) return;
+					const s = loaderAccentStops();
+				 	host.classList.add("aurora-fallback");
+					host.style.setProperty("--aur-1", s[0]);
+					host.style.setProperty("--aur-2", s[1]);
+					host.style.setProperty("--aur-3", s[2]);
+				}
+				window.__paintAuroraFallback = paintAuroraFallback;
 				window.mountHomeAurora = mountHomeAurora;
 
 				/* Release every WebGL context this page owns when it goes
@@ -4242,6 +4306,8 @@ const c = window.exploreGameCat(item.game);
 				if (!list) return;
 
 				list.innerHTML = "";
+				const pinned = document.getElementById("lb-pinned");
+				if (pinned) { pinned.innerHTML = ""; pinned.hidden = true; }
 
 				if (lbFailed) {
 					const local = window.DB && DB.getMode && DB.getMode() !== "supabase";
@@ -4295,16 +4361,13 @@ const c = window.exploreGameCat(item.game);
 				   report one number here and a different one on your page. */
 				const myIdx = rows.findIndex(r => r.isMe);
 				const myRank = myIdx >= 0 ? myIdx + 1 : (lbMyRank && lbMyRank.rank);
-				if (myRank && !pageHasMe && (myIdx >= 0 || (lbMyRank && lbMyRank.me))) {
-					const sep = document.createElement("div");
-					sep.className = "lb-me-sep";
-					sep.innerHTML = `<span>Your position</span>`;
-					list.appendChild(sep);
-
+				/* Pinned outside the scrolling list, just above the page buttons,
+				   so your own rank is always on screen. */
+				if (pinned && myRank && !pageHasMe && (myIdx >= 0 || (lbMyRank && lbMyRank.me))) {
 					const r = myIdx >= 0 ? rows[myIdx] : lbMyRank.me;
 					const row = document.createElement("div");
 					row.className = "lb-row lb-me lb-pinned";
-					row.style.setProperty("--i", list.children.length);
+					row.style.setProperty("--i", pinned.children.length);
 					const name = String(r.username).replace(/[<>&"]/g, "");
 					const time = window.fmtTime ? window.fmtTime(r.totalPlaytime) : r.totalPlaytime + "s";
 					const chip = levels ? `<span class="lb-level-chip">Level ${lbLevelOf(r)}</span>` : "";
@@ -4315,7 +4378,8 @@ const c = window.exploreGameCat(item.game);
 						<span class="lb-name">${name} (you)</span>
 						${chip}
 						<span class="lb-time">${time}</span>`;
-					list.appendChild(row);
+					pinned.appendChild(row);
+					pinned.hidden = false;
 				}
 				renderLbPager(Math.max(1, Math.ceil(rows.length / LB_PAGE)));
 				if (window.lucide) lucide.createIcons();
