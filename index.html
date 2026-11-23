@@ -9,6 +9,7 @@
 		<meta name="robots" content="noindex, nofollow" />
 		<link rel="icon" type="image/png" href="favicon.png?v=1" />
 		<title>Phantom</title>
+		<script src="incognito-tab.js?v=2"></script>
 		<script>
 			/* player.html / flash.html load this page in a hidden iframe so the call
 			   keeps running (and its mic/camera stay controllable) while you are in a
@@ -26,7 +27,7 @@
 		</script>
 		<link rel="stylesheet" href="style.css?v=5" />
 		<link rel="stylesheet" href="messenger.css?v=3" />
-		<link rel="stylesheet" href="new.css?v=142" />
+		<link rel="stylesheet" href="new.css?v=143" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
@@ -993,6 +994,31 @@
 						<p class="settings-desc">Choose where the exit button takes you when you leave a game.</p>
 						<div class="exit-options" id="exit-pills"></div>
 					</section>
+					<section class="settings-section">
+						<h2 class="settings-title">Incognito</h2>
+						<p class="settings-desc">Disguise this tab as Gmail, Drive or Canvas. The favicon and title change; the page behind it stays Phantom.</p>
+						<div class="incognito-head">
+							<span class="incognito-label" id="incognito-label">Incognito mode</span>
+							<button class="incognito-switch" id="incognito-switch" type="button" role="switch" aria-checked="false" aria-labelledby="incognito-label">
+								<span class="incognito-knob"></span>
+							</button>
+						</div>
+						<div class="exit-options incognito-picks" id="incognito-picks" role="group" aria-label="Tab disguise">
+							<button class="exit-option incognito-option" data-disguise="gmail" type="button" aria-pressed="false">
+								<img class="incognito-logo" src="incognito/gmail.png" alt="" width="22" height="22" draggable="false" />
+								<span>Gmail</span>
+							</button>
+							<button class="exit-option incognito-option" data-disguise="drive" type="button" aria-pressed="false">
+								<img class="incognito-logo" src="incognito/drive.png" alt="" width="22" height="22" draggable="false" />
+								<span>Google Drive</span>
+							</button>
+							<button class="exit-option incognito-option" data-disguise="canvas" type="button" aria-pressed="false">
+								<img class="incognito-logo" src="incognito/canvas.png" alt="" width="22" height="22" draggable="false" />
+								<span>Canvas</span>
+							</button>
+						</div>
+					</section>
+
 
 					<section class="settings-section settings-danger">
 						<h2 class="settings-title">Danger Zone</h2>
@@ -4018,121 +4044,6 @@ const c = window.exploreGameCat(item.game);
 				}
 				window.checkThemesIntro = () => attempt(0);
 				setTimeout(() => attempt(8), 800);
-			})();
-		</script>
-		<script>
-			/* --- Topographic WebGL background behind news card --- */
-			(function () {
-				var card = document.getElementById("home-news");
-				if (!card || !window.WebGLRenderingContext) return;
-				var canvas = document.createElement("canvas");
-				canvas.className = "home-news-topo";
-				card.insertBefore(canvas, card.firstChild);
-				var failed = false;
-				function topoFail(msg) {
-					if (failed) return;
-					failed = true;
-					try { console.warn("topo: " + msg); } catch (e) {}
-					if (canvas.parentNode) canvas.remove();
-					card.classList.add("topo-fallback");
-				}
-				var gl = null;
-				try {
-					gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: false, antialias: false });
-				} catch (e) {}
-				if (!gl) { topoFail("no webgl context"); return; }
-
-				var vsSrc = "attribute vec2 a;void main(){gl_Position=vec4(a,0.0,1.0);}";
-				var noiseSrc = "vec3 mod289v(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}vec4 mod289v4(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}vec4 permute(vec4 x){return mod289v4(((x*34.0)+1.0)*x);}vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}float snoise(vec3 v){const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=mod289v(i);vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));float n_=0.142857142857;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}";
-				var fsSrc = "precision highp float;" + noiseSrc + "uniform float u_time;uniform float u_dpr;uniform vec4 u_line;void main(){vec2 p=gl_FragCoord.xy/u_dpr*0.004;float noise=snoise(vec3(p,1.0+u_time*0.01));noise=10.0*(noise+1.0)*0.5;float rounded=ceil(noise);float err=rounded-noise;if(err>0.1)discard;gl_FragColor=u_line;}";
-
-				function compile(src, type) {
-					var s = gl.createShader(type);
-					gl.shaderSource(s, src);
-					gl.compileShader(s);
-					if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-						var log = gl.getShaderInfoLog(s) + "";
-						gl.deleteShader(s);
-						var e = new Error(log);
-						throw e;
-					}
-					return s;
-				}
-				var vs, fs;
-				try { vs = compile(vsSrc, gl.VERTEX_SHADER); fs = compile(fsSrc, gl.FRAGMENT_SHADER); }
-				catch (e) { topoFail("shader compile failed: " + (e && e.message)); return; }
-
-				var prog = gl.createProgram();
-				gl.attachShader(prog, vs);
-				gl.attachShader(prog, fs);
-				gl.bindAttribLocation(prog, 0, "a");
-				gl.linkProgram(prog);
-				if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { topoFail("link failed: " + gl.getProgramInfoLog(prog)); return; }
-				gl.useProgram(prog);
-
-				var buf = gl.createBuffer();
-				gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
-				gl.enableVertexAttribArray(0);
-				gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-				gl.enable(gl.BLEND);
-				gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-				gl.clearColor(0, 0, 0, 0);
-
-				var uTime = gl.getUniformLocation(prog, "u_time");
-				var uDpr  = gl.getUniformLocation(prog, "u_dpr");
-				var uLine = gl.getUniformLocation(prog, "u_line");
-				var lastKey = "";
-				var lineColor = [0.83, 1.0, 0.47, 0.55];
-
-				function hexToRgb(hex) {
-					var h = String(hex || "").replace("#", "").trim();
-					if (h.length === 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
-					if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
-					var n = parseInt(h, 16);
-					return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-				}
-
-				function updateLineColor() {
-					var raw = "";
-					try { raw = localStorage.getItem("accent") || ""; } catch (e) {}
-					var day = document.body.classList.contains("theme-day");
-					var k = (day ? "day" : "dark") + "|" + raw;
-					if (k === lastKey) return;
-					lastKey = k;
-					lineColor = day ? [0.13, 0.16, 0.2, 0.22] : [0.83, 1.0, 0.47, 0.55];
-					try {
-						var accent = (JSON.parse(raw || "{}").accent || "").trim();
-						var rgb = hexToRgb(accent);
-						if (rgb) lineColor = [rgb[0], rgb[1], rgb[2], day ? 0.22 : 0.55];
-					} catch (e) {}
-				}
-				window.applyTopoTheme = function () { lastKey = ""; };
-
-				function resize() {
-					var dpr = window.devicePixelRatio || 1;
-					var w = Math.max(1, Math.round(card.clientWidth  * dpr));
-					var h = Math.max(1, Math.round(card.clientHeight * dpr));
-					canvas.width = w;
-					canvas.height = h;
-					gl.viewport(0, 0, w, h);
-				}
-				var ro = null;
-				if (window.ResizeObserver) { ro = new ResizeObserver(resize); ro.observe(card); }
-				else window.addEventListener("resize", resize);
-				resize();
-
-				function frame(t) {
-					requestAnimationFrame(frame);
-					if (!document.getElementById("home-view").classList.contains("active")) return;
-					updateLineColor();
-					gl.uniform1f(uTime, (t || 0) * 0.001);
-					gl.uniform1f(uDpr, window.devicePixelRatio || 1);
-					gl.uniform4fv(uLine, lineColor);
-					gl.clear(gl.COLOR_BUFFER_BIT);
-					gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-				}
-				requestAnimationFrame(frame);
 			})();
 		</script>
 		<script>
@@ -8512,5 +8423,49 @@ const c = window.exploreGameCat(item.game);
 			if (b) b.addEventListener("click", function(){ if (window.showView) window.showView("settings"); });
 		})();
 		</script>
+	<script>
+		/* --- Settings -> Incognito: the switch and the disguise picker ---
+		   The disguise itself lives in incognito-tab.js, which every page
+		   loads, so this only edits the saved choice and repaints the controls. */
+		(function incognitoSettings() {
+			var api = window.IncognitoTab;
+			var sw = document.getElementById("incognito-switch");
+			var picks = document.getElementById("incognito-picks");
+			if (!api || !sw || !picks) return;
+
+			function paint() {
+				var state = api.read();
+				sw.setAttribute("aria-checked", state.on ? "true" : "false");
+				Array.prototype.forEach.call(picks.querySelectorAll("[data-disguise]"), function (btn) {
+					var chosen = btn.dataset.disguise === state.disguise;
+					btn.classList.toggle("active", chosen);
+					btn.setAttribute("aria-pressed", chosen ? "true" : "false");
+				});
+			}
+
+			sw.addEventListener("click", function () {
+				var state = api.read();
+				state.on = !state.on;
+				api.save(state);
+				paint();
+			});
+
+			Array.prototype.forEach.call(picks.querySelectorAll("[data-disguise]"), function (btn) {
+				btn.addEventListener("click", function () {
+					var state = api.read();
+					state.disguise = btn.dataset.disguise;
+					/* Picking a disguise is the point of the mode, so it
+					   switches incognito on instead of only preselecting. */
+					state.on = true;
+					api.save(state);
+					paint();
+				});
+			});
+
+			/* A switch flipped in another tab keeps this panel honest. */
+			window.addEventListener("storage", paint);
+			paint();
+		})();
+	</script>
 		</body>
 </html>
