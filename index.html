@@ -26,7 +26,7 @@
 		</script>
 		<link rel="stylesheet" href="style.css?v=5" />
 		<link rel="stylesheet" href="messenger.css?v=3" />
-		<link rel="stylesheet" href="new.css?v=130" />
+		<link rel="stylesheet" href="new.css?v=142" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
@@ -360,6 +360,15 @@
 						<input type="text" id="search-input" placeholder="Search games..." autocomplete="off" />
 						<button id="clear-btn" class="clear-btn">&#10005;</button>
 					</div>
+					<div class="history-wrap">
+						<button class="history-btn" id="history-btn" type="button" aria-label="Recently played" aria-pressed="false" data-tip="Recently played" title="Recently played">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M3.49902 14.9656C4.72475 18.4791 8.06749 21 11.999 21C16.9696 21 20.999 16.9706 20.999 12C20.999 7.02944 16.9696 3 11.999 3C8.29827 3 4.8984 5.6756 3.68943 8.5"></path>
+								<path d="M11.999 7V12L14.999 14"></path>
+								<path d="M7.49751 8.74363C7.49751 8.74363 3.81388 9.3026 3.25487 8.7436C2.69585 8.1846 3.25488 4.50098 3.25488 4.50098"></path>
+							</svg>
+						</button>
+					</div>
 				</div>
 <ul id="game-links" class="games-list"></ul>
 			</section>
@@ -627,8 +636,8 @@
 			</section>
 
 			<section id="leaderboard-view" class="view">
-				<div class="mode-page-head"><h2>Leaderboards</h2></div>
 				<div class="lb-cols">
+					<div class="mode-page-head"><h2>Leaderboards</h2></div>
 					<div class="lb-left">
 						<div class="lb-me" id="lb-me">
 							<div class="lb-me-ring">
@@ -656,10 +665,12 @@
 						</div>
 					</div>
 					<div class="lb-panel lb-right">
-												<div class="lb-list" id="leaderboard-list"></div>
-						<div class="lb-pinned-wrap" id="lb-pinned" hidden></div>
-						<div class="lb-foot">
+						<div class="lb-board" id="lb-board">
+							<div class="lb-list" id="leaderboard-list"></div>
+							<div class="lb-pinned-wrap" id="lb-pinned" hidden></div>
 							<nav class="lb-pager" id="lb-pager" aria-label="Leaderboard pages" hidden></nav>
+						</div>
+						<div class="lb-foot">
 							<div class="lb-tabs" id="lb-tabs" role="tablist" aria-label="Leaderboard type">
 								<span class="lb-tab-pill" id="lb-tab-pill" aria-hidden="true"></span>
 								<button class="lb-tab active" type="button" data-tab="playtime" role="tab" aria-selected="true">Playtime</button>
@@ -2592,6 +2603,13 @@ function gameLinkOf(game) {
 						return JSON.parse(localStorage.getItem("bookmarks") || "[]");
 					}
 
+/* The history button is a filter, not a panel: while it is on, the list
+				   shows only the games this browser has already opened. */
+				let recentOnly = false;
+				function readLastPlayed() {
+					try { return JSON.parse(localStorage.getItem("rcdn-lastplayed") || "{}") || {}; } catch (e) { return {}; }
+				}
+
 function updateDOM(filter = "") {
 						list.innerHTML = "";
 						const q = filter.toLowerCase().trim();
@@ -2606,6 +2624,27 @@ function updateDOM(filter = "") {
 							if (cat.indexOf(" ") === -1) return qWords.some(w => w === cat);
 							return false;
 						});
+						/* Newest first, straight from the record player.html and flash.html
+						   write when a game opens. */
+						if (recentOnly) {
+							const last = readLastPlayed();
+							/* One row per played game: the catalogue can hold two entries
+							   with the same clean name. */
+							const seen = new Set();
+							const recent = matches
+								.filter(g => Number(last[window.cleanNameOf(g.gameName)] || 0) > 0)
+								.sort((a, b) => Number(last[window.cleanNameOf(b.gameName)] || 0) - Number(last[window.cleanNameOf(a.gameName)] || 0))
+								.filter(g => { const clean = window.cleanNameOf(g.gameName); if (seen.has(clean)) return false; seen.add(clean); return true; });
+							if (!recent.length) {
+								list.innerHTML = "<div class='no-results'>No games played yet. Open one and it appears here.</div>";
+								return;
+							}
+							list.appendChild(divider("Recently played"));
+							recent.forEach(g => list.appendChild(buildRow(g, false)));
+							if (window.lucide) lucide.createIcons();
+							return;
+						}
+
 const favorites = new Set(getBookmarks());
 						const isFav = g => favorites.has(window.cleanNameOf(g.gameName));
 						const favGames = matches.filter(isFav);
@@ -2664,6 +2703,16 @@ if (document.startViewTransition) {
 				if (activeKey === "leaderboard" && window.buildLeaderboard) window.buildLeaderboard();
 
 				searchInput.addEventListener("input", e => render(e.target.value));
+				/* The history button filters this same list down to the games
+				   already played, newest first. */
+				const historyBtn = document.getElementById("history-btn");
+				if (historyBtn) {
+					historyBtn.addEventListener("click", () => {
+						recentOnly = !recentOnly;
+						historyBtn.setAttribute("aria-pressed", recentOnly ? "true" : "false");
+						render(searchInput.value);
+					});
+				}
 				} catch (error) {
 					console.error("game-links ERROR:" + error);
 				}
@@ -4361,8 +4410,8 @@ const c = window.exploreGameCat(item.game);
 				   report one number here and a different one on your page. */
 				const myIdx = rows.findIndex(r => r.isMe);
 				const myRank = myIdx >= 0 ? myIdx + 1 : (lbMyRank && lbMyRank.rank);
-				/* Pinned outside the scrolling list, just above the page buttons,
-				   so your own rank is always on screen. */
+				/* Pinned at the end of the board's scroll area, under the page
+				   rows, so it scrolls with the rest of the list. */
 				if (pinned && myRank && !pageHasMe && (myIdx >= 0 || (lbMyRank && lbMyRank.me))) {
 					const r = myIdx >= 0 ? rows[myIdx] : lbMyRank.me;
 					const row = document.createElement("div");
@@ -5001,11 +5050,20 @@ const c = window.exploreGameCat(item.game);
 					const t = String(m.content || "");
 					return t.length > 40 ? t.slice(0, 40) + "…" : t;
 				}
-				function fmtTime(ts) {
+				/* Messages are stamped in bursts: one divider covers everything
+				   sent within this many minutes of the previous message. */
+				const MSG_TIME_GAP = 3 * 60 * 1000;
+				function sameDayTs(a, b) {
+					const x = new Date(a), y = new Date(b);
+					return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
+				}
+				/* Today reads as "11:00 am"; anything older adds the date. */
+				function fmtStamp(ts) {
 					const d = new Date(ts || Date.now());
-					let h = d.getHours() % 12 || 12;
+					const h = d.getHours() % 12 || 12;
 					const m = String(d.getMinutes()).padStart(2, "0");
-					return `${h}:${m} ${d.getHours() < 12 ? "AM" : "PM"}`;
+					const time = `${h}:${m} ${d.getHours() < 12 ? "am" : "pm"}`;
+					return sameDayTs(d.getTime(), Date.now()) ? time : `${d.getMonth() + 1}/${d.getDate()} at ${time}`;
 				}
 
 				function getMyId() {
@@ -5144,7 +5202,6 @@ const c = window.exploreGameCat(item.game);
 								<div class="msg-invite-text">${text}</div>
 								${actions}
 							</div>
-							<span class="msg-time">${esc(fmtTime(m.ts))}</span>
 						</div>
 					</div>`;
 				}
@@ -5177,15 +5234,29 @@ const c = window.exploreGameCat(item.game);
 					}
 					const meId = getMyId();
 					const other = resolveOtherForActive();
+					let prevTs = 0;
+					let prevSender = null;
 					chatBody.innerHTML = messages.map(m => {
+						const ts = Number(m.ts) || 0;
+						/* A divider opens each burst: the first message, a gap of a few
+						   minutes, or a new day. Everything up to the next divider shares
+						   that one timestamp. */
+						let block = "";
+						if (!prevTs || ts - prevTs > MSG_TIME_GAP || !sameDayTs(prevTs, ts)) {
+							block = `<div class="msg-date-divider"><span>${esc(fmtStamp(ts))}</span></div>`;
+							prevSender = null;
+						}
+						prevTs = ts;
 						if (m.type === "system") {
 							const txt = (m.meta && m.meta.system) || m.content || "System message";
-							return `<div class="msg-system">${esc(txt)}</div>`;
+							prevSender = null;
+							return block + `<div class="msg-system">${esc(txt)}</div>`;
 						}
 						if (m.type === "invite") {
 							let mineInv = isMine(m.senderId);
 							if (!mineInv && active.type === "dm" && active.otherId) mineInv = String(m.senderId) !== String(active.otherId);
-							return renderInviteMessage(m, !!mineInv);
+							prevSender = null;
+							return block + renderInviteMessage(m, !!mineInv);
 						}
 						let mine = isMine(m.senderId);
 						if (!mine && active.type === "dm" && active.otherId) mine = String(m.senderId) !== String(active.otherId);
@@ -5197,13 +5268,16 @@ const c = window.exploreGameCat(item.game);
 						/* only our own game pages are ever linked from a bubble */
 						const gLink = (m.meta && m.meta.game && m.meta.game.link) || "";
 						const gOk = /^(flash|player|defense)\.html(\?|$)/.test(gLink);
-						return `<div class="msg-row${mine ? " me" : ""}" data-msg="${esc(String(m.id))}">
-							${mine ? "" : avatarHtml(who || { username: name })}
+						/* Consecutive messages from one person hang under the first
+						   one's avatar and name. */
+						const grouped = prevSender !== null && String(prevSender) === String(m.senderId);
+						prevSender = m.senderId;
+						return block + `<div class="msg-row${mine ? " me" : ""}${grouped ? " grouped" : ""}" data-msg="${esc(String(m.id))}">
+							${mine || grouped ? "" : avatarHtml(who || { username: name })}
 							<div class="msg-bubble-wrap">
-								${!mine ? `<span class="msg-sender">${esc(name)}</span>` : ""}
+								${!mine && !grouped ? `<span class="msg-sender">${esc(name)}</span>` : ""}
 								<div class="msg-bubble${m.meta && m.meta.image ? " msg-bubble-img" : ""}">${m.meta && m.meta.replyTo ? `<div class="msg-quote"><span class="msg-quote-name">${esc(m.meta.replyTo.name || "")}</span><span class="msg-quote-text">${esc(m.meta.replyTo.text || "")}</span></div>` : ""}${m.meta && m.meta.image ? `<a class="msg-img-link" href="${esc(m.meta.image)}" target="_blank" rel="noopener"><img class="msg-img" src="${esc(m.meta.image)}" alt="${esc(m.meta.name || "image")}" loading="lazy" /></a>` : esc(m.content || "")}${m.meta && m.meta.edited ? '<span class="msg-edited">(edited)</span>' : ""}${mine ? `<div class="msg-acts">${m.type === "text" && !(m.meta && m.meta.image) ? `<button class="msg-act" type="button" data-edit="${esc(String(m.id))}" aria-label="Edit message" title="Edit">${MSG_EDIT_ICON}</button>` : ""}<button class="msg-act" type="button" data-del="${esc(String(m.id))}" aria-label="Delete message" title="Delete">${MSG_DEL_ICON}</button></div>` : `<div class="msg-acts"><button class="msg-act" type="button" data-reply="${esc(String(m.id))}" aria-label="Reply" title="Reply">${MSG_REPLY_ICON}</button></div>`}</div>
 								${gOk ? `<a class="msg-play" href="${esc(gLink)}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5.5v13l11-6.5z"></path></svg>Play</a>` : ""}
-								<span class="msg-time">${esc(fmtTime(m.ts))}</span>
 							</div>
 						</div>`;
 					}).join("");
@@ -8438,5 +8512,5 @@ const c = window.exploreGameCat(item.game);
 			if (b) b.addEventListener("click", function(){ if (window.showView) window.showView("settings"); });
 		})();
 		</script>
-</body>
+		</body>
 </html>

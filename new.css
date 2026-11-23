@@ -2585,10 +2585,11 @@ body.theme-day .show-row:hover { background: #f6f7f9; }
 .lb-cols {
   display: grid;
   grid-template-columns: minmax(280px, 350px) minmax(0, 1fr);
-  gap: 40px;
+  row-gap: 24px;
+  column-gap: 40px;
   width: 100%;
   max-width: 1120px;
-  margin-top: 12px;
+  margin-top: 92px;
   align-items: start;
 }
 .lb-left {
@@ -2603,25 +2604,50 @@ body.theme-day .show-row:hover { background: #f6f7f9; }
   flex-direction: column;
   gap: 4px;
 }
-/* The board is its own scroll area: tabs stay on top, and your pinned
-   position plus the page buttons stay on screen underneath it. */
+/* The title owns the first grid row of the left column only, so the board
+   starts level with the account card instead of under a full-width
+   heading row. The row it no longer spans is added back to the board
+   height, which keeps its bottom edge where it was. */
+#leaderboard-view .lb-cols > .mode-page-head {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+}
+#leaderboard-view .lb-left { grid-column: 1; grid-row: 2; }
+/* The board spans both rows so its first row lines up with the title, while
+   the left column still starts under it. */
+#leaderboard-view .lb-right { grid-column: 2; grid-row: 1 / span 2; }
+
+/* The board is its own scroll area, and everything in it travels
+   together: rows, your pinned rank and the page buttons. Only the
+   Playtime/Levels toggle stays put underneath. */
 .lb-right {
   gap: 4px;
-  height: clamp(320px, calc(100vh - 250px), 760px);
+  /* Tall enough that a full page of rows plus your pinned rank and the page
+     buttons fit without scrolling inside the board. */
+  height: clamp(320px, calc(100vh - 168px), 740px);
   min-height: 0;
 }
-.lb-right .lb-list {
+.lb-board {
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   overflow-y: auto;
-  padding: 8px 6px 8px 0;
+  padding: 0 6px 8px 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
 }
-.lb-right .lb-list::-webkit-scrollbar { width: 8px; }
-.lb-right .lb-list::-webkit-scrollbar-thumb {
+.lb-board::-webkit-scrollbar { width: 8px; }
+.lb-board::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.3);
   border-radius: 999px;
+}
+.lb-board .lb-list {
+  flex: none;
+  overflow: visible;
+  padding: 0;
 }
 .lb-pinned-wrap {
   flex: none;
@@ -2630,28 +2656,19 @@ body.theme-day .show-row:hover { background: #f6f7f9; }
   gap: 8px;
 }
 .lb-pinned-wrap[hidden] { display: none; }
-/* Page buttons and the Playtime/Levels toggle share the row under the
-   board: numbers on the left, toggle on the right. */
+/* The Playtime/Levels toggle owns the row under the board now that the
+   page buttons scroll with the list. */
 .lb-foot {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
 }
-.lb-foot .lb-pager {
-  flex: 1 1 auto;
-  justify-content: flex-start;
-  padding-top: 0;
-}
 .lb-foot .lb-tabs { flex: none; }
-@media (max-width: 520px) {
-  .lb-foot { flex-wrap: wrap; }
-  .lb-foot .lb-pager { width: 100%; }
-}
 @media (max-width: 900px) {
   .lb-right { height: auto; }
-  .lb-right .lb-list { overflow: visible; }
+  .lb-board { overflow: visible; }
 }
 .lb-panel .lb-list {
   max-width: none;
@@ -2668,6 +2685,9 @@ body.theme-day .show-row:hover { background: #f6f7f9; }
 }
 @media (max-width: 900px) {
   .lb-cols { grid-template-columns: 1fr; gap: 30px; }
+  #leaderboard-view .lb-cols > .mode-page-head,
+  #leaderboard-view .lb-left,
+  #leaderboard-view .lb-right { grid-column: 1; grid-row: auto; }
 }
 
 .lb-row {
@@ -3473,6 +3493,47 @@ body.theme-night .lb-pager-btn { background: #1c1c20; color: #d1d5db; }
 body.theme-night .lb-pager-btn:hover:not(:disabled) { background: #26262c; color: #f5f5f5; }
 body.theme-night .lb-pager-dots { color: #6b7280; }
 
+/* ---------------- Recently played filter (Explore search bar) ----------------
+   Square button beside the search field. It filters the games list itself down
+   to the games this browser already opened, newest first, rather than opening
+   a panel of its own. */
+.history-wrap { position: relative; flex: none; align-self: stretch; width: 48px; }
+.history-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #222;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+.history-btn svg { width: 19px; height: 19px; }
+.history-btn:hover { color: #fff; background: #292929; }
+.history-btn[aria-pressed="true"] { color: #fff; background: #292929; border-color: var(--accent); }
+
+body.theme-day .history-btn { background: #fff; color: #6b7280; }
+body.theme-day .history-btn:hover { color: #111827; }
+body.theme-day .history-btn[aria-pressed="true"] { color: #111827; border-color: var(--accent2); }
+
+body[data-theme][data-theme] .history-btn { background: var(--t-surface); color: var(--t-text-2); border-color: var(--t-line); }
+body[data-theme][data-theme] .history-btn:hover { color: var(--t-text); background: var(--t-surface-2); }
+body[data-theme][data-theme] .history-btn[aria-pressed="true"] { color: var(--t-text); background: var(--t-surface-2); border-color: var(--accent); }
+
+@media (max-height: 800px), (max-width: 1500px) {
+  .history-wrap { width: 41px; }
+  .history-btn svg { width: 17px; height: 17px; }
+}
+@media (max-height: 650px) {
+  .history-wrap { width: 35px; }
+  .history-btn svg { width: 16px; height: 16px; }
+}
+
 /* ---------------- Home (games-view): shrink-to-fit on smaller screens ----------------
    The hero - Aurora backdrop + search offset - is sized with values tuned
    for big monitors (82vh backdrop, 24vh search push). Short screens (small laptops)
@@ -3640,6 +3701,37 @@ body.theme-day .msg-member-more { color: #4b5563; }
 }
 .msg-row.me .msg-bubble { background: var(--accent, #22c55e); color: #111827; }
 .msg-time { font-size: 11px; color: #6b7280; padding: 0 4px; }
+/* Timestamps between bursts of messages, plus the tighter stack used for
+   consecutive messages from the same person. */
+.msg-date-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  flex: none;
+  margin: 12px 0 2px;
+}
+.msg-date-divider::before,
+.msg-date-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #2b2b31;
+}
+.msg-date-divider span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b9098;
+  white-space: nowrap;
+}
+.msg-row.grouped { margin-left: 42px; margin-top: -5px; }
+.msg-row.me.grouped { margin-left: 0; }
+body.theme-day .msg-date-divider::before,
+body.theme-day .msg-date-divider::after { background: #e5e7eb; }
+body.theme-day .msg-date-divider span { color: #6b7280; }
+body[data-theme][data-theme] .msg-date-divider::before,
+body[data-theme][data-theme] .msg-date-divider::after { background: var(--t-line); }
+body[data-theme][data-theme] .msg-date-divider span { color: var(--t-text-2); }
 
 .msg-compose {
   display: flex; gap: 10px; padding: 12px 14px; border-top: 1px solid #2b2b31; background: #1b1b1f;
@@ -4828,6 +4920,10 @@ body.theme-night .calls-chat-head { border-color: #2a2a2f; }
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Size containment keeps the messages out of the panel's intrinsic
+     height. Without it the log's content stretches the chat (and the call
+     stage beside it, and the page) instead of scrolling inside the panel. */
+  contain: size;
 }
 .calls-chat-empty { margin: auto; font-size: 12px; opacity: 0.5; }
 .calls-chat-msg {
