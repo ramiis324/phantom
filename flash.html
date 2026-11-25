@@ -256,7 +256,7 @@
             };
         </script>
 
-		<script src="cdn.js?v=5"></script>
+		<script src="cdn.js?v=6"></script>
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<script src="supabase-config.js?v=3"></script>
 		<script src="online.js?v=4"></script>
@@ -278,7 +278,7 @@
             })();
         </script>
         <script src="ruffle/ruffle.js"></script>
-        <script src="toolbox.js?v=23"></script>
+        <script src="toolbox.js?v=24"></script>
 
         <script>
             function clean(name) {
@@ -339,8 +339,7 @@
             (async function init() {
                 const loading = document.getElementById("loading");
 
-                const gamesURL = await fetch(CDN + "list_games.json");
-                const games = await gamesURL.json();
+                const games = await loadGameCatalog();
 
                 let ruffle = window.RufflePlayer.newest();
                 let player = ruffle.createPlayer();

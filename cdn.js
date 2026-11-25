@@ -670,3 +670,24 @@ function gameUrl(gameIndex) {
 }
 window.gameUrl = gameUrl;
 window.gameCdn = gameCdn;
+
+// The r-cdn GitHub Pages build now fails (the repo is well past the Pages
+// size limit), so the catalogue is read straight from the repo: raw first for
+// freshness, then jsDelivr, then the still-deployed Pages copy as a fallback.
+async function loadGameCatalog() {
+    const sources = [
+        "https://raw.githubusercontent.com/ramiis324/r-cdn/main/list_games.json",
+        "https://cdn.jsdelivr.net/gh/ramiis324/r-cdn@main/list_games.json",
+        CDN + "list_games.json"
+    ];
+    for (const url of sources) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 3500);
+        try {
+            const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+            if (res.ok) return await res.json();
+        } catch (e) {} finally { clearTimeout(timer); }
+    }
+    return [];
+}
+window.loadGameCatalog = loadGameCatalog;

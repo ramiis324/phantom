@@ -862,28 +862,20 @@ button.clear-btn {
 #explore-view.active { align-items: stretch; }
 #explore-view { position: relative; }
 
-/* Aurora test background (react-bits port) behind the Explore content. */
-#explore-view .aurora-host {
+/* PixelSnow canvas (react-bits port) fills its host. */
+.pixel-snow-canvas {
   position: absolute;
   inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-  border-radius: 18px;
-}
-#explore-view .aurora-canvas {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
 }
 #explore-view .explore-wrap { position: relative; z-index: 1; }
 
-/* Aurora backdrop pinned to the top of a page (home/games +
-   the legacy explore view). Spans the full viewport behind content. */
+/* Snow backdrop pinned to the top of a page. Spans the full viewport
+   behind content. */
 main.main { position: relative; }
-.home-aurora-host {
+.home-snow-host {
   position: absolute;
   top: 0;
   left: 50vw;
@@ -3427,16 +3419,16 @@ body[data-theme][data-theme] .history-btn[aria-pressed="true"] { color: var(--t-
 }
 
 /* ---------------- Home (games-view): shrink-to-fit on smaller screens ----------------
-   The hero - Aurora backdrop + search offset - is sized with values tuned
+   The hero - Snow backdrop + search offset - is sized with values tuned
    for big monitors (82vh backdrop, 24vh search push). Short screens (small laptops)
    and narrow screens get a scaled-down hero: shorter backdrop, smaller search
    offset, tighter grid, cards and fonts, so everything fits the screen. */
 @media (max-height: 820px) {
-  	.home-aurora-host { height: 68vh; }
+  	.home-snow-host { height: 68vh; }
   #games-view .game-bar { margin-top: 16vh; }
 }
 @media (max-height: 700px) {
-  	.home-aurora-host { height: 56vh; }
+  	.home-snow-host { height: 56vh; }
   #games-view .game-bar { margin-top: 11vh; }
 }
 @media (max-height: 800px), (max-width: 1500px) {
@@ -5885,6 +5877,52 @@ body[data-theme][data-theme] .lb-empty { color: var(--t-text-2); }
   border-color: var(--t-text-2, #9ca3af);
 }
 
+/* --- Happy holidays card --- */
+.holiday-pop {
+  max-width: 400px;
+  overflow: hidden;
+}
+/* Matches the theme rules' specificity (body[data-theme] .acct-pop). */
+body[data-theme][data-theme] .holiday-pop {
+  background: radial-gradient(140% 100% at 50% 0%, #eafbf0 0%, #ffffff 62%);
+  border-color: rgba(22, 101, 52, 0.2);
+  box-shadow: 0 24px 48px -18px rgba(6, 78, 59, 0.45);
+}
+.holiday-pop::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 6px;
+  background: linear-gradient(90deg, #b91c1c 0%, #166534 50%, #b91c1c 100%);
+}
+.holiday-pop-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin: 4px auto 16px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, #166534, #15803d);
+  color: #fff;
+  box-shadow: 0 10px 22px -10px rgba(6, 78, 59, 0.7);
+}
+.holiday-pop-title { letter-spacing: -0.01em; }
+.holiday-pop-desc { margin-bottom: 22px; }
+body[data-theme][data-theme] .holiday-pop-title { color: #111827; }
+body[data-theme][data-theme] .holiday-pop-desc { color: #4b5563; }
+body[data-theme][data-theme] .holiday-pop-cta { background: #b91c1c; color: #fff; }
+body[data-theme][data-theme] .holiday-pop-cta:hover { background: #991b1b; }
+body.theme-night[data-theme][data-theme] .holiday-pop {
+  background: radial-gradient(140% 100% at 50% 0%, #16321f 0%, #14161a 62%);
+  border-color: rgba(74, 222, 128, 0.22);
+}
+body.theme-night[data-theme][data-theme] .holiday-pop-title { color: #f5f5f5; }
+body.theme-night[data-theme][data-theme] .holiday-pop-desc { color: #b8c7bd; }
+body.theme-night[data-theme][data-theme] .holiday-pop-cta { background: #15803d; }
+body.theme-night[data-theme][data-theme] .holiday-pop-cta:hover { background: #166534; }
+body.theme-night[data-theme][data-theme] .holiday-pop .acct-pop-close:hover { background: #232327; color: #f5f5f5; }
+
 /* ============================================================
    Daily streak chip — square flame button left of the account
    card; grows left on hover to spell out the count.
@@ -5979,25 +6017,62 @@ body[data-theme][data-theme] .streak-chip:hover,
 body[data-theme][data-theme] .streak-chip:focus-visible { border-color: var(--t-text-2); }
 body[data-theme][data-theme] .streak-icon { color: var(--t-accent); }
 
-/* ------------------------------------------------------------
-   Aurora fallback: WebGL2 refused, so the header keeps the same
-   three theme colours as slow-drifting CSS blooms.
-   ------------------------------------------------------------ */
-.home-aurora-host.aurora-fallback {
-  background:
-    radial-gradient(60% 85% at 22% 8%, var(--aur-1, #7cff67) 0%, rgba(255, 255, 255, 0) 62%),
-    radial-gradient(70% 90% at 78% 26%, var(--aur-2, #5227ff) 0%, rgba(255, 255, 255, 0) 64%),
-    radial-gradient(95% 95% at 50% 104%, var(--aur-3, #0e7a34) 0%, rgba(255, 255, 255, 0) 70%);
-  background-size: 165% 165%;
-  animation: aurora-drift 22s ease-in-out infinite alternate;
-}
-@keyframes aurora-drift {
-  0% { background-position: 0% 0%, 100% 100%, 50% 50%; }
-  100% { background-position: 32% 18%, 64% 58%, 40% 28%; }
-}
-
 @media (max-width: 640px) {
   .streak-chip { width: 48px; height: 48px; padding: 0 12px; }
   .streak-chip:hover,
   .streak-chip:focus-visible { width: 152px; }
 }
+
+/* ---------------- Browser ----------------
+   Site cards for the browser tab. Same surface as a leaderboard row; the
+   name is set in VT323, the pixel face krillion.io uses. */
+.brw-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 800px;
+  padding: 8px 0;
+}
+a.brw-card { text-decoration: none; }
+.brw-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px 8px 14px;
+  background: #222;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #fff;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+.brw-card:hover {
+  background: #2b2b31;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+body.theme-day .brw-card { background: #fff; color: #111; }
+body.theme-day .brw-card:hover { background: #f6f7f9; }
+.brw-logo { display: flex; flex: none; }
+.brw-logo img {
+  width: 32px;
+  height: 32px;
+  display: block;
+  border-radius: 8px;
+  image-rendering: pixelated;
+}
+.brw-name {
+  font-family: "VT323", ui-monospace, monospace;
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.brw-soon {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+body.theme-night .brw-soon { color: #9ca3af; }

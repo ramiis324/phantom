@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+		<meta http-equiv="Pragma" content="no-cache" />
+		<meta http-equiv="Expires" content="0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/png" href="favicon.png?v=1" />
+    <title>Phantom</title>
+    <script src="incognito-tab.js?v=2"></script>
+    <script>
+        /* Some inbound links arrive with tracking junk tacked on, e.g.
+           player.html?helixjump&i=1. The game lookup reads the whole query
+           as the name, so put the URL back in canonical form first. */
+        (function () {
+            var q = location.search;
+            if (q.indexOf("&") === -1) return;
+            var name = q.slice(1).split("&")[0];
+            if (!name) return;
+            location.replace(location.pathname + "?" + name + (location.hash || ""));
+        })();
+    </script>
+    <link rel="stylesheet" href="toolbox.css?v=21" />
+    <script src="scramjet/scramjet.js"></script>
+    <script src="controller/controller.api.js"></script>
+        <style>
+        :root {
+            --accent: greenyellow;
+            --accent2: #212121;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: sans-serif;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        #site-stage { position: fixed; inset: 0; background: #000; }
+        #site-frame { width: 100%; height: 100%; border: none; display: block; }
+        #site-blocked {
+            position: fixed; inset: 0; z-index: 300;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(8, 9, 12, 0.92); color: #e5e7eb;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            padding: 24px; text-align: center;
+        }
+        #site-blocked[hidden] { display: none; }
+        .site-blocked-box { max-width: 420px; }
+        .site-blocked-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+        .site-blocked-text { font-size: 14px; line-height: 1.55; color: #9ca3af; margin-bottom: 18px; }
+        .site-blocked-btn {
+            border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.08);
+            color: #fff; border-radius: 999px; padding: 10px 22px; font-size: 14px; cursor: pointer;
+        }
+        .site-blocked-btn:hover { background: rgba(255, 255, 255, 0.14); }
+        #controls {
+            position: fixed;
+            left: 12px;
+            top: 16px;
+            z-index: 160;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            width: 44px;
+            background: rgba(0, 0, 0, 0.7);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 100px;
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            cursor: grab;
+            user-select: none;
+            padding: 6px;
+            overflow: hidden;
+        }
+        #controls.collapsed {
+            padding: 0;
+            gap: 0;
+            transform: translateX(-12px);
+            border-radius: 0 100px 100px 0;
+        }
+        #controls.collapsed .ctrl-actions {
+            display: none;
+        }
+        #controls.collapsed .ctrl-toggle svg {
+            transform: rotate(180deg);
+        }
+        .ctrl-toggle {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #fff;
+            border-radius: 50%;
+            flex-shrink: 0;
+            transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .ctrl-toggle:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ctrl-toggle svg {
+            transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .ctrl-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            overflow: hidden;
+        }
+        .back-btn {
+            background: transparent;
+            border: none;
+            color: #fff;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border-radius: 50%;
+            cursor: pointer;
+            font-family: sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ctrl-bookmark-btn {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            color: #fff;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+        .ctrl-bookmark-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ctrl-bookmark-btn svg {
+            width: 22px;
+            height: 22px;
+        }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .loading .bar {
+            width: 200px;
+            height: 4px;
+            background: rgba(173, 255, 47, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .loading .bar-fill {
+            height: 100%;
+            width: 30%;
+            background: var(--accent);
+            border-radius: 4px;
+            animation: loadingBar 1.4s ease-in-out infinite;
+        }
+        @keyframes loadingBar {
+            0% { transform: translateX(-100%); width: 30%; }
+            50% { width: 50%; }
+            100% { transform: translateX(400%); width: 30%; }
+        }
+        #pause-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.82);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #pause-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #pause-overlay .pause-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            color: #fff;
+            font-family: sans-serif;
+            user-select: none;
+            cursor: pointer;
+        }
+        #pause-overlay .pause-box svg {
+            width: 56px;
+            height: 56px;
+            opacity: 0.9;
+        }
+        #pause-overlay .pause-text {
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        /* Toolbox pause: lighter dim, no resume prompt. */
+        #pause-overlay.dim {
+            background: rgba(0, 0, 0, 0);
+            pointer-events: none;
+        }
+        #pause-overlay.dim .pause-box {
+            opacity: 0;
+        }
+    </style>
+    <style>
+        /* --- Realtime message notification pill (account-card style) --- */
+        #msg-pill {
+            position: fixed;
+            top: 16px;
+            right: 24px;
+            z-index: 400;
+            display: inline-flex;
+            align-items: center;
+            gap: 11px;
+            padding: 9px 10px 9px 9px;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 14px;
+            box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.35);
+            cursor: grab;
+            touch-action: none;
+            user-select: none;
+            animation: msgPillIn .35s cubic-bezier(.22, 1, .36, 1) both;
+        }
+        #msg-pill[hidden] { display: none; }
+        #msg-pill.leaving { transition: opacity .25s ease; opacity: 0; }
+        @keyframes msgPillIn {
+            from { opacity: 0; transform: translateY(-14px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .msg-pill-avatar {
+            width: 38px; height: 38px; border-radius: 50%; overflow: hidden; flex: none;
+            background: var(--accent, greenyellow); color: var(--accent2, #212121);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 16px;
+        }
+        .msg-pill-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .msg-pill-avatar svg { width: 20px; height: 20px; }
+        .msg-pill-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; line-height: 1.15; }
+        .msg-pill-name {
+            font-size: 14px; font-weight: 700; color: #111827;
+            max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .msg-pill-preview {
+            font-size: 12.5px; color: #6b7280;
+            max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .msg-pill-open {
+            flex: none; width: 38px; height: 38px; border: none; border-radius: 50%;
+            background: var(--accent, greenyellow); color: var(--accent2, #212121);
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .msg-pill-open:hover { filter: brightness(1.05); }
+        .msg-pill-open svg { width: 20px; height: 20px; }
+
+        /* --- Floating DM window (draggable + resizable) --- */
+        #msg-float {
+            position: fixed;
+            top: 70px; right: 24px;
+            width: 320px; height: 420px;
+            min-width: 260px; min-height: 280px;
+            max-width: 92vw; max-height: 85vh;
+            z-index: 410;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            resize: both;
+        }
+        #msg-float[hidden] { display: none; }
+        .msg-float-head {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px; border-bottom: 1px solid #e5e7eb;
+            background: #fff; flex: none;
+            cursor: move; user-select: none;
+        }
+        .msg-float-title {
+            flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #111827;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .msg-float-close {
+            width: 30px; height: 30px; flex: none; border: none; border-radius: 8px;
+            background: #eef0f3; color: #374151; font-size: 18px; line-height: 1; cursor: pointer;
+        }
+        .msg-float-close:hover { background: #e2e5ea; }
+        .msg-float-body {
+            flex: 1; overflow-y: auto; padding: 12px;
+            display: flex; flex-direction: column; gap: 8px;
+            background: #f9fafb;
+        }
+        .msg-float-row { display: flex; gap: 8px; max-width: 85%; }
+        .msg-float-row.me { align-self: flex-end; flex-direction: row-reverse; }
+        .msg-float-sender { font-size: 11px; color: #6b7280; padding: 0 3px; }
+        .msg-float-bubble {
+            padding: 7px 11px; border-radius: 12px; background: #eef0f3; color: #111827;
+            font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
+        }
+        .msg-float-row.me .msg-float-bubble { background: var(--accent, greenyellow); color: var(--accent2, #212121); }
+        .msg-float-compose {
+            display: flex; gap: 8px; padding: 10px;
+            border-top: 1px solid #e5e7eb; background: #fff; flex: none;
+        }
+        .msg-float-input {
+            flex: 1; height: 36px; border: 1px solid #d1d5db; border-radius: 9px;
+            padding: 0 10px; font: inherit; font-size: 13px; outline: none; color: #111827;
+        }
+        .msg-float-input:focus { border-color: #9ca3af; }
+        .msg-float-send {
+            width: 36px; height: 36px; flex: none; border: none; border-radius: 9px;
+            background: var(--accent, greenyellow); color: var(--accent2, #212121);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .msg-float-send:disabled { opacity: .4; cursor: default; }
+        .msg-float-send svg { width: 17px; height: 17px; }
+        .msg-float-note { margin: auto; color: #6b7280; font-size: 13px; text-align: center; padding: 16px; }
+    </style>
+</head>
+<body>
+		<script src="cdn.js?v=6"></script>
+		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+		<script src="supabase-config.js?v=3"></script>
+		<script src="online.js?v=4"></script>
+		<script src="db.js?v=65"></script>
+		<script src="grainient-loader.js?v=21"></script>
+		<script src="streak.js?v=1"></script>
+		<script src="toolbox.js?v=24"></script>
+    <script>
+        (function () {
+            /* The theme owns the accent in here too; the profile color only
+               paints avatars, so it no longer shades the controls. */
+            try {
+                const t = window.grainient && window.grainient.theme;
+                if (t) {
+                    const r = document.documentElement.style;
+                    r.setProperty("--accent", t.accent);
+                    r.setProperty("--accent2", t.onAccent);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <div id="controls">
+        <button class="ctrl-toggle" id="ctrl-toggle">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18C15 18 9.00001 13.5811 9 12C8.99999 10.4188 15 6 15 6"></path></svg>
+        </button>
+        <div class="ctrl-actions" id="ctrl-actions">
+            <button class="back-btn" id="ctrl-home" title="Home">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8924 2.80982L21.4876 9.59547C21.8112 9.85095 22 10.2405 22 10.6528C22 11.3969 21.3969 12 20.6528 12H20V15.5C20 18.3284 20 19.7426 19.1213 20.6213C18.2426 21.5 16.8284 21.5 14 21.5H10C7.17157 21.5 5.75736 21.5 4.87868 20.6213C4 19.7426 4 18.3284 4 15.5V12H3.34716C2.60315 12 2 11.3969 2 10.6528C2 10.2405 2.1888 9.85095 2.5124 9.59547L11.1076 2.80982C11.3617 2.60915 11.6761 2.5 12 2.5C12.3239 2.5 12.6383 2.60915 12.8924 2.80982Z"></path><path d="M14.5 21.5V17C14.5 16.0654 14.5 15.5981 14.299 15.25C14.1674 15.022 13.978 14.8326 13.75 14.701C13.4019 14.5 12.9346 14.5 12 14.5C11.0654 14.5 10.5981 14.5 10.25 14.701C10.022 14.8326 9.83261 15.022 9.70096 15.25C9.5 15.5981 9.5 16.0654 9.5 17V21.5"></path></svg>
+            </button>
+            <div id="extra-controls"></div>
+        </div>
+    </div>
+    <div class="loading" id="loading">
+        <div class="bar"><div class="bar-fill"></div></div>
+    </div>
+    <div id="site-stage"></div>
+    <div id="site-blocked" hidden>
+        <div class="site-blocked-box">
+            <div class="site-blocked-title">Only approved sites open here</div>
+            <div class="site-blocked-text" id="site-blocked-text"></div>
+            <button class="site-blocked-btn" id="site-blocked-back" type="button">Back to the browser</button>
+        </div>
+    </div>
+    <script>
+        const controls = document.getElementById("controls");
+        const toggle = document.getElementById("ctrl-toggle");
+
+        const savedTop = localStorage.getItem("controls-top");
+        if (savedTop) {
+            controls.style.top = savedTop;
+        }
+
+        if (localStorage.getItem("controls-collapsed") === "1") {
+            controls.classList.add("collapsed");
+        }
+
+        toggle.addEventListener("click", () => {
+            controls.classList.toggle("collapsed");
+            localStorage.setItem("controls-collapsed", controls.classList.contains("collapsed") ? "1" : "0");
+        });
+
+        const EXIT_ICONS = {
+            home: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8924 2.80982L21.4876 9.59547C21.8112 9.85095 22 10.2405 22 10.6528C22 11.3969 21.3969 12 20.6528 12H20V15.5C20 18.3284 20 19.7426 19.1213 20.6213C18.2426 21.5 16.8284 21.5 14 21.5H10C7.17157 21.5 5.75736 21.5 4.87868 20.6213C4 19.7426 4 18.3284 4 15.5V12H3.34716C2.60315 12 2 11.3969 2 10.6528C2 10.2405 2.1888 9.85095 2.5124 9.59547L11.1076 2.80982C11.3617 2.60915 11.6761 2.5 12 2.5C12.3239 2.5 12.6383 2.60915 12.8924 2.80982Z"></path><path d="M14.5 21.5V17C14.5 16.0654 14.5 15.5981 14.299 15.25C14.1674 15.022 13.978 14.8326 13.75 14.701C13.4019 14.5 12.9346 14.5 12 14.5C11.0654 14.5 10.5981 14.5 10.25 14.701C10.022 14.8326 9.83261 15.022 9.70096 15.25C9.5 15.5981 9.5 16.0654 9.5 17V21.5"></path></svg>',
+            games: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8924 2.80982L21.4876 9.59547C21.8112 9.85095 22 10.2405 22 10.6528C22 11.3969 21.3969 12 20.6528 12H20V15.5C20 18.3284 20 19.7426 19.1213 20.6213C18.2426 21.5 16.8284 21.5 14 21.5H10C7.17157 21.5 5.75736 21.5 4.87868 20.6213C4 19.7426 4 18.3284 4 15.5V12H3.34716C2.60315 12 2 11.3969 2 10.6528C2 10.2405 2.1888 9.85095 2.5124 9.59547L11.1076 2.80982C11.3617 2.60915 11.6761 2.5 12 2.5C12.3239 2.5 12.6383 2.60915 12.8924 2.80982Z"></path><path d="M14.5 21.5V17C14.5 16.0654 14.5 15.5981 14.299 15.25C14.1674 15.022 13.978 14.8326 13.75 14.701C13.4019 14.5 12.9346 14.5 12 14.5C11.0654 14.5 10.5981 14.5 10.25 14.701C10.022 14.8326 9.83261 15.022 9.70096 15.25C9.5 15.5981 9.5 16.0654 9.5 17V21.5"></path></svg>',
+            movies: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3.5 10.5H17.9118C19.3676 10.5 20.0955 10.5 20.5477 10.9393C21 11.3787 21 12.0858 21 13.5V15C21 18.2998 21 19.9497 19.9447 20.9749C18.8894 22 17.191 22 13.7941 22H10.7059C7.309 22 5.61055 22 4.55528 20.9749C3.5 19.9497 3.5 18.2998 3.5 15V10.5Z"></path><path d="M3.49827 10.5C3.14118 9.14207 2.96264 8.46311 3.00654 7.86611C3.08518 6.79682 3.63742 5.82221 4.50691 5.21816C4.99236 4.88092 5.6587 4.69899 6.99138 4.33514L14.7321 2.22172C15.0767 2.12763 15.2491 2.08058 15.3977 2.05386C17.0504 1.75694 18.6737 2.71192 19.2477 4.31874C19.2993 4.4633 19.3455 4.63888 19.4378 4.99006C19.4642 5.09039 19.4774 5.14056 19.4849 5.18385C19.5682 5.66498 19.3004 6.13757 18.8498 6.30467C18.8093 6.3197 18.7601 6.33314 18.6616 6.36003L3.49827 10.5Z"></path><path d="M7 10L9 4"></path><path d="M14 8L16 2"></path><path d="M8 18H11" stroke-linecap="round"></path></svg>',
+            bookmarks: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22.0002C7.75736 22.0002 5.63604 22.0002 4.31802 20.5358C3 19.0713 3 16.7143 3 12.0002C3 7.28617 3 4.92915 4.31802 3.46468C5.63604 2.00022 7.75736 2.00022 12 2.00022C16.2426 2.00022 18.364 2.00022 19.682 3.46468C21 4.92915 21 7.28617 21 12.0002C21 16.7143 21 19.0713 19.682 20.5358C18.364 22.0002 16.2426 22.0002 12 22.0002Z"></path><path d="M8 2.5V9.82621C8 11.0733 8 11.6969 8.38642 11.9201C9.13473 12.3523 10.5384 10.9103 11.205 10.4761C11.5916 10.2243 11.7849 10.0984 12 10.0984C12.2151 10.0984 12.4084 10.2243 12.795 10.4761C13.4616 10.9103 14.8653 12.3523 15.6136 11.9201C16 11.6969 16 11.0733 16 9.82621V2.5"></path></svg>',
+            leaderboard: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9C19 12.866 15.866 16 12 16C8.13401 16 5 12.866 5 9C5 5.13401 8.13401 2 12 2C15.866 2 19 5.13401 19 9Z"></path><path d="M8 15V20.5128C8 21.3875 8 21.8248 8.27639 21.9634C8.55279 22.1019 8.90186 21.8395 9.6 21.3146L10.8 20.4125C11.3778 19.9782 11.6667 19.761 12 19.761C12.3333 19.761 12.6222 19.9782 13.2 20.4125L14.4 21.3146C15.0981 21.8395 15.4472 22.1019 15.7236 21.9634C16 21.8248 16 21.3875 16 20.5128V15"></path><path d="M11.6686 5.21225C11.8066 4.92946 12.1934 4.92947 12.3314 5.21225L13.1449 6.87978C13.1989 6.99046 13.3003 7.06749 13.4178 7.08703L15.1862 7.38122C15.4859 7.43108 15.6054 7.81473 15.391 8.0392L14.125 9.36513C14.0412 9.45297 14.0025 9.57736 14.021 9.69991L14.3 11.5504C14.3473 11.8638 14.0345 12.101 13.7638 11.957L12.1688 11.1083C12.0628 11.0518 11.9372 11.0518 11.8312 11.1083L10.2362 11.957C9.96554 12.101 9.65271 11.8638 9.69996 11.5504L9.979 9.69991C9.99748 9.57736 9.95882 9.45297 9.87495 9.36513L8.60896 8.0392C8.39464 7.81473 8.51408 7.43108 8.8138 7.38122L10.5822 7.08703C10.6997 7.06749 10.8011 6.99046 10.8551 6.87978L11.6686 5.21225Z"></path></svg>',
+            settings: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.3175 7.14139L20.8239 6.28479C20.4506 5.63696 20.264 5.31305 19.9464 5.18388C19.6288 5.05472 19.2696 5.15664 18.5513 5.36048L17.3311 5.70418C16.8725 5.80994 16.3913 5.74994 15.9726 5.53479L15.6357 5.34042C15.2766 5.11043 15.0004 4.77133 14.8475 4.37274L14.5136 3.37536C14.294 2.71534 14.1842 2.38533 13.9228 2.19657C13.6615 2.00781 13.3143 2.00781 12.6199 2.00781H11.5051C10.8108 2.00781 10.4636 2.00781 10.2022 2.19657C9.94085 2.38533 9.83106 2.71534 9.61149 3.37536L9.27753 4.37274C9.12465 4.77133 8.84845 5.11043 8.48937 5.34042L8.15249 5.53479C7.73374 5.74994 7.25259 5.80994 6.79398 5.70418L5.57375 5.36048C4.85541 5.15664 4.49625 5.05472 4.17867 5.18388C3.86109 5.31305 3.67445 5.63696 3.30115 6.28479L2.80757 7.14139C2.45766 7.74864 2.2827 8.05227 2.31666 8.37549C2.35061 8.69871 2.58483 8.95918 3.05326 9.48012L4.0843 10.6328C4.3363 10.9518 4.51521 11.5078 4.51521 12.0077C4.51521 12.5078 4.33636 13.0636 4.08433 13.3827L3.05326 14.5354C2.58483 15.0564 2.35062 15.3168 2.31666 15.6401C2.2827 15.9633 2.45766 16.2669 2.80757 16.8741L3.30114 17.7307C3.67443 18.3785 3.86109 18.7025 4.17867 18.8316C4.49625 18.9608 4.85542 18.8589 5.57377 18.655L6.79394 18.3113C7.25263 18.2055 7.73387 18.2656 8.15267 18.4808L8.4895 18.6752C8.84851 18.9052 9.12464 19.2442 9.2775 19.6428L9.61149 20.6403C9.83106 21.3003 9.94085 21.6303 10.2022 21.8191C10.4636 22.0078 10.8108 22.0078 11.5051 22.0078H12.6199C13.3143 22.0078 13.6615 22.0078 13.9228 21.8191C14.1842 21.6303 14.294 21.3003 14.5136 20.6403L14.8476 19.6428C15.0004 19.2442 15.2765 18.9052 15.6356 18.6752L15.9724 18.4808C16.3912 18.2656 16.8724 18.2055 17.3311 18.3113L18.5513 18.655C19.2696 18.8589 19.6288 18.9608 19.9464 18.8316C20.264 18.7025 20.4506 18.3785 20.8239 17.7307L21.3175 16.8741C21.6674 16.2669 21.8423 15.9633 21.8084 15.6401C21.7744 15.3168 21.5402 15.0564 21.0718 14.5354L20.0407 13.3827C19.7887 13.0636 19.6098 12.5078 19.6098 12.0077C19.6098 11.5078 19.7888 10.9518 20.0407 10.6328L21.0718 9.48012C21.5402 8.95918 21.7744 8.69871 21.8084 8.37549C21.8423 8.05227 21.6674 7.74864 21.3175 7.14139Z" stroke-linecap="round"></path><path d="M15.5195 12C15.5195 13.933 13.9525 15.5 12.0195 15.5C10.0865 15.5 8.51953 13.933 8.51953 12C8.51953 10.067 10.0865 8.5 12.0195 8.5C13.9525 8.5 15.5195 10.067 15.5195 12Z"></path></svg>'
+        };
+        EXIT_ICONS.explore = EXIT_ICONS.games;
+        const EXIT_URLS = {
+            home: "index.html",
+            browser: "index.html?view=browser",
+            games: "index.html?view=browser",
+            explore: "index.html?view=browser",
+            bookmarks: "index.html?view=bookmarks",
+            movies: "index.html?view=movies",
+            leaderboard: "index.html?view=leaderboard",
+            settings: "index.html?view=settings"
+        };
+        const exitBtn = document.getElementById("ctrl-home");
+        let exitTarget = localStorage.getItem("rcdn-exit-target") || "browser";
+        if (exitTarget === "explore" || exitTarget === "games") exitTarget = "browser";
+        if (!EXIT_URLS[exitTarget]) exitTarget = "explore";
+        exitBtn.innerHTML = EXIT_ICONS[exitTarget] || EXIT_ICONS.home;
+        exitBtn.title = exitTarget.charAt(0).toUpperCase() + exitTarget.slice(1);
+        exitBtn.addEventListener("click", () => {
+            location.href = EXIT_URLS[exitTarget];
+        });
+
+        let isDragging = false;
+        let wasDragged = false;
+        let startY, startTop;
+
+        function isDragHandle(el) {
+            return !el.closest("#ctrl-actions");
+        }
+
+        controls.addEventListener("mousedown", (e) => {
+            if (!isDragHandle(e.target)) return;
+            isDragging = true;
+            wasDragged = false;
+            startY = e.clientY;
+            startTop = controls.offsetTop;
+            controls.style.cursor = "grabbing";
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+            const dy = e.clientY - startY;
+            if (Math.abs(dy) > 5) wasDragged = true;
+            let newTop = startTop + dy;
+            const maxTop = window.innerHeight - controls.offsetHeight;
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+            controls.style.top = newTop + "px";
+        });
+
+        document.addEventListener("mouseup", () => {
+            if (!isDragging) return;
+            isDragging = false;
+            controls.style.cursor = "grab";
+            if (wasDragged) {
+                localStorage.setItem("controls-top", controls.style.top);
+            }
+        });
+
+        controls.addEventListener("touchstart", (e) => {
+            if (!isDragHandle(e.target)) return;
+            isDragging = true;
+            wasDragged = false;
+            startY = e.touches[0].clientY;
+            startTop = controls.offsetTop;
+        });
+
+        document.addEventListener("touchmove", (e) => {
+            if (!isDragging) return;
+            const dy = e.touches[0].clientY - startY;
+            if (Math.abs(dy) > 5) wasDragged = true;
+            let newTop = startTop + dy;
+            const maxTop = window.innerHeight - controls.offsetHeight;
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+            controls.style.top = newTop + "px";
+        });
+
+        document.addEventListener("touchend", () => {
+            if (!isDragging) return;
+            isDragging = false;
+            if (wasDragged) {
+                localStorage.setItem("controls-top", controls.style.top);
+            }
+        });
+
+        function clean(str) {
+            return str.toLowerCase().replace(/[^a-z0-9]/g, "");
+        }
+
+        /* Genre lookup mirrors Explore's regex categories so "See more like
+           this" can jump to the right filtered Explore view. */
+        window.__phantomGenre = "";
+        function computeGenre(name) {
+            var n = String(name || "").toLowerCase();
+            var cats = [
+                [/flash/, "Flash"], [/minecraft/, "Minecraft"], [/emulator|retro|nes|snes|genesis|gba/, "Emulator"],
+                [/horror|fnaf|scary|granny/, "Horror"], [/cook|bake|kitchen/, "Cooking"], [/puzzle|match|tetris|sudoku/, "Puzzle"],
+                [/tower|defen/, "Tower Defense"], [/rac|drive|kart|moto/, "Racing"], [/shoot|fps|gun|war|battle/, "Shooter"],
+                [/sport|football|soccer|basket|golf/, "Sports"], [/run|dash|endless/, "Runner"], [/click|idle/, "Clicker"],
+                [/sandbox|craft/, "Sandbox"], [/sim|life|city|farm|tycoon/, "Life/Sim"], [/strateg|chess|checkers/, "Strategy"],
+                [/fight|combat|action|adventure/, "Action"]
+            ];
+            for (var i = 0; i < cats.length; i++) if (cats[i][0].test(n)) return cats[i][1];
+            return "Games";
+        }
+
+        /* Level curve: Lv N needs 60*(N-1)^2 total XP (same as the home page). */
+        window.phantomAccountStats = function () {
+            var map = {};
+            try { map = JSON.parse(localStorage.getItem("rcdn-playtime") || "{}"); } catch (e) {}
+            var seconds = 0, played = 0;
+            for (var k in map) {
+                var v = +map[k] || 0;
+                if (v > 0) { seconds += v; played++; }
+            }
+            var xp = Math.round(seconds) + played * 60;
+            var level = Math.floor(Math.sqrt(xp / 60)) + 1;
+            var from = 60 * (level - 1) * (level - 1);
+            var to = 60 * level * level;
+            var pct = Math.max(0, Math.min(100, ((xp - from) / (to - from)) * 100));
+            return { xp: xp, level: level, pct: pct, seconds: seconds, played: played };
+        };
+        /* ---------------------------------------------------------------
+           Site loader: Scramjet renders the site through the wisp proxy, so
+           pages that refuse framing (krillion.io sends X-Frame-Options) still
+           open here. Only hosts listed in SITES can be reached; anything else
+           the frame tries to navigate to is blocked.
+           --------------------------------------------------------------- */
+        var SITE_WISP = "wss://rvpn.opik.net/wisp/";
+        var SITES = {
+            krillion: {
+                name: "Krillion",
+                url: "https://krillion.io/",
+                hosts: ["krillion.io", "www.krillion.io"]
+            }
+        };
+        var SJ_MARK = "/~/sj/";
+        var siteKey = (new URLSearchParams(location.search)).get("s") || "krillion";
+        var site = SITES[siteKey];
+        var siteController = null;
+        var siteFrame = null;
+        var siteBlocked = document.getElementById("site-blocked");
+        var loadingEl = document.getElementById("loading");
+        window.PHANTOM = {
+            cleanName: siteKey,
+            title: site ? site.name : siteKey,
+            genre: "Sites",
+            stats: (window.getAccountStats ? window.getAccountStats() : (window.phantomAccountStats ? window.phantomAccountStats() : null)),
+            username: (function () { try { return (JSON.parse(localStorage.getItem("social.v1") || "null") || {}).profile.username; } catch (e) { return null; } })(),
+            avatarSrc: (function () { try { var p = (JSON.parse(localStorage.getItem("social.v1") || "null") || {}).profile; return window.profilePictureSrc ? window.profilePictureSrc(p) : null; } catch (e) { return null; } })(),
+            gameFrame: function () { return siteFrame; },
+            initialView: false
+        };
+        window.dispatchEvent(new CustomEvent("phantom-context-ready"));
+
+        function siteHostAllowed(host) {
+            var h = String(host || "").toLowerCase().replace(/^www\./, "");
+            return (site ? site.hosts : []).some(function (allowed) {
+                var a = allowed.toLowerCase().replace(/^www\./, "");
+                return h === a || h.endsWith("." + a);
+            });
+        }
+        function decodeScramUrl(href) {
+            try {
+                var path = new URL(href).pathname;
+                var i = path.indexOf(SJ_MARK);
+                if (i === -1) return href;
+                var rest = path.slice(i + SJ_MARK.length).split("/").slice(2).join("/");
+                return decodeURIComponent(rest);
+            } catch (e) { return href; }
+        }
+        function showBlocked(url) {
+            if (!siteBlocked) return;
+            var text = document.getElementById("site-blocked-text");
+            if (text) text.textContent = "This loader only opens " + (site ? site.name : "the listed site") + ". " + url + " is not on the list yet.";
+            siteBlocked.hidden = false;
+            if (siteFrame && siteFrame.element) siteFrame.element.style.visibility = "hidden";
+        }
+        function hideBlocked() {
+            if (!siteBlocked) return;
+            siteBlocked.hidden = true;
+            if (siteFrame && siteFrame.element) siteFrame.element.style.visibility = "visible";
+        }
+        document.getElementById("site-blocked-back").addEventListener("click", function () {
+            location.href = "index.html?view=browser";
+        });
+
+        /* Poll the frame's URL: the proxied document stays same-origin, so its
+           real target is readable there and every hop can be checked. */
+        setInterval(function () {
+            if (!siteFrame) return;
+            try {
+                var href = (siteFrame.element && siteFrame.element.contentWindow || {}).location.href;
+                if (!href || href.indexOf(SJ_MARK) === -1) return;
+                var real = decodeScramUrl(href);
+                var host = new URL(real).hostname;
+                if (siteHostAllowed(host)) { if (siteBlocked && !siteBlocked.hidden) hideBlocked(); }
+                else showBlocked(host);
+            } catch (e) {}
+        }, 700);
+
+        (async function () {
+            if (!site) {
+                loadingEl.innerHTML = "No site specified.";
+                return;
+            }
+            document.title = site.name;
+            if (window.grainient) window.grainient.setup({ label: site.name });
+            try {
+                var reg = await navigator.serviceWorker.register("siteloader-sw.js");
+                await navigator.serviceWorker.ready;
+                var start = Date.now();
+                while (!navigator.serviceWorker.controller && Date.now() - start < 4000) {
+                    var r = await navigator.serviceWorker.getRegistration();
+                    if (r && r.waiting) r.waiting.postMessage("SKIP_WAITING");
+                    await new Promise(function (ok) { setTimeout(ok, 250); });
+                }
+                if (!navigator.serviceWorker.controller) throw new Error("service worker could not take control");
+                var sw = navigator.serviceWorker.controller || reg.active;
+                var mod = await import("/libcurl/index.js");
+                var transport = new mod.default({ wisp: SITE_WISP });
+                await transport.init();
+                siteController = new $scramjetController.Controller({ serviceworker: sw, transport: transport });
+                await siteController.ready;
+                siteFrame = siteController.createFrame();
+                siteFrame.element.id = "site-frame";
+                siteFrame.element.setAttribute("allow", "fullscreen; autoplay; clipboard-write");
+                siteFrame.element.setAttribute("allowfullscreen", "");
+                document.getElementById("site-stage").appendChild(siteFrame.element);
+                siteFrame.go(site.url);
+                siteFrame.element.addEventListener("load", function () {
+                    loadingEl.style.display = "none";
+                    window.dispatchEvent(new CustomEvent("phantom-site-ready"));
+                });
+                setTimeout(function () { loadingEl.style.display = "none"; }, 12000);
+                if (window.grainient) window.grainient.ready();
+            } catch (err) {
+                console.warn("[siteloader]", err);
+                loadingEl.innerHTML = "Could not load the site.";
+                if (window.grainient) window.grainient.ready();
+            }
+        })();
+
+        /* Collapse button can be turned off in the toolbox; when it is the
+           bar can't be collapsed, so hide the toggle entirely. */
+        function applyControlVisibility() {
+            const showCollapse = localStorage.getItem("phantom-btn-collapse") !== "0";
+            const toolbar = document.querySelector("#controls .ctrl-toggle");
+            if (toolbar) toolbar.style.display = showCollapse ? "" : "none";
+            if (!showCollapse) controls.classList.remove("collapsed");
+        }
+        applyControlVisibility();
+        window.addEventListener("phantom-display-change", applyControlVisibility);
+    </script>
+    <script>
+        (function () {
+            var KEY = "rcdn-playtime";
+            var LP_KEY = "rcdn-lastplayed";
+            var name = ((location.search.split("?")[1] || "").split("&")[0]).toLowerCase();
+            if (!name) return;
+            var start = null;
+            var timer = null;
+            function loadMap(k) { try { return JSON.parse(localStorage.getItem(k) || "{}"); } catch (e) { return {}; } }
+            function touchLast() {
+                var m = loadMap(LP_KEY);
+                m[name] = Date.now();
+                try { localStorage.setItem(LP_KEY, JSON.stringify(m)); } catch (e) {}
+            }
+            function flush() {
+                if (start == null) return;
+                var now = Date.now();
+                var secs = Math.max(0, Math.floor((now - start) / 1000));
+                if (secs) {
+                    var m = loadMap(KEY);
+                    m[name] = (m[name] || 0) + secs;
+                    try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (e) {}
+                    /* A minute of play counts the day. */
+                    if (window.RCDNStreak) window.RCDNStreak.play(secs);
+                }
+                start = now;
+            }
+            function isRunning() {
+                if (document.visibilityState !== "visible") return false;
+                if (window.__isPaused && window.__isPaused()) return false;
+                return true;
+            }
+            function loop() {
+                flush();
+                if (isRunning()) {
+                    touchLast();
+                    timer = setTimeout(loop, 5000);
+                } else {
+                    start = null;
+                }
+            }
+            function refresh() {
+                clearTimeout(timer);
+                if (isRunning()) {
+                    if (start == null) { start = Date.now(); touchLast(); }
+                    timer = setTimeout(loop, 5000);
+                } else {
+                    flush();
+                    start = null;
+                }
+            }
+            window.addEventListener("pageshow", refresh);
+            window.addEventListener("pagehide", flush);
+            window.addEventListener("blur", flush);
+            window.addEventListener("beforeunload", flush);
+            document.addEventListener("visibilitychange", refresh);
+            document.addEventListener("freeze", flush);
+            if (window.__addPauseListener) window.__addPauseListener(refresh);
+            refresh();
+        })();
+    </script>
+    <!-- Realtime message notification pill + floating DM window -->
+    <div id="msg-pill" hidden>
+        <span class="msg-pill-avatar" id="msg-pill-avatar" aria-hidden="true"></span>
+        <span class="msg-pill-meta">
+            <span class="msg-pill-name" id="msg-pill-name"></span>
+            <span class="msg-pill-preview" id="msg-pill-preview"></span>
+        </span>
+        <button class="msg-pill-open" id="msg-pill-open" type="button" aria-label="Open chat" title="Open chat">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.99609 10.5C1.99609 9.72921 2.00956 8.97679 2.03519 8.2503C2.11892 5.87683 2.16078 4.69009 3.12616 3.71745C4.09154 2.74481 5.31179 2.6926 7.75229 2.58819C9.09126 2.5309 10.517 2.5 11.9961 2.5C13.4752 2.5 14.9009 2.5309 16.2399 2.58819C18.6804 2.6926 19.9006 2.74481 20.866 3.71745C21.8314 4.69009 21.8733 5.87683 21.957 8.2503C21.9826 8.97679 21.9961 9.72921 21.9961 10.5C21.9961 11.2708 21.9826 12.0232 21.957 12.7497C21.8733 15.1232 21.8314 16.3099 20.866 17.2826C19.9006 18.2552 18.6804 18.3074 16.2398 18.4118C15.5059 18.4432 14.7459 18.4667 13.9654 18.4815C13.2242 18.4955 12.8537 18.5026 12.5281 18.6266C12.2025 18.7506 11.9285 18.9855 11.3806 19.4553L9.20113 21.3242C9.06882 21.4376 8.90029 21.5 8.726 21.5C8.32289 21.5 7.99609 21.1732 7.99609 20.7701V18.4219C7.91451 18.4186 7.83324 18.4153 7.75229 18.4118C5.31179 18.3074 4.09154 18.2552 3.12616 17.2825C2.16078 16.3099 2.11892 15.1232 2.03519 12.7497C2.00956 12.0232 1.99609 11.2708 1.99609 10.5Z"></path><path d="M7.49609 8.5H16.4961M7.49609 12.5H12.9961"></path></svg>
+        </button>
+    </div>
+    <div id="msg-float" hidden>
+        <div class="msg-float-head" id="msg-float-head">
+            <span class="msg-float-title" id="msg-float-title">Messages</span>
+            <button class="msg-float-close" id="msg-float-close" type="button" aria-label="Close">&times;</button>
+        </div>
+        <div class="msg-float-body" id="msg-float-body"></div>
+        <form class="msg-float-compose" id="msg-float-compose" autocomplete="off">
+            <input class="msg-float-input" id="msg-float-input" type="text" placeholder="Message..." autocomplete="off" />
+            <button class="msg-float-send" id="msg-float-send" type="submit" aria-label="Send">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9 22 2z"/></svg>
+            </button>
+        </form>
+    </div>
+    <script>
+        (function () {
+            "use strict";
+            if (!window.DB) return;
+
+            var myId = null;
+            var myIdPromise = null;
+            var ready = false;
+            var pillTimer = null;
+            var pillInfo = null;   // { convId, type, title, avatar }
+            var floatConv = null;  // convId open in the floating window
+            var dmsCache = null;
+            var groupsCache = null;
+
+            var pill = document.getElementById("msg-pill");
+            var pillAvatar = document.getElementById("msg-pill-avatar");
+            var pillName = document.getElementById("msg-pill-name");
+            var pillPreview = document.getElementById("msg-pill-preview");
+            var pillOpen = document.getElementById("msg-pill-open");
+            var floatEl = document.getElementById("msg-float");
+            var floatTitle = document.getElementById("msg-float-title");
+            var floatBody = document.getElementById("msg-float-body");
+            var floatInput = document.getElementById("msg-float-input");
+            var floatSend = document.getElementById("msg-float-send");
+            var floatCompose = document.getElementById("msg-float-compose");
+
+            var MESSAGES_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+
+            function esc(s) {
+                return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+                    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+                });
+            }
+            function readIdList(key) {
+                try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch (e) { return []; }
+            }
+            function hasId(key, id) {
+                return !!id && readIdList(key).map(String).indexOf(String(id)) !== -1;
+            }
+            function readSeen() { try { return JSON.parse(localStorage.getItem("msg-seen-v1") || "{}"); } catch (e) { return {}; } }
+            function markSeen(convId, ts) {
+                if (!convId) return;
+                try {
+                    var s = readSeen();
+                    s[convId] = Math.max(Number(s[convId] || 0), Number(ts || Date.now()));
+                    localStorage.setItem("msg-seen-v1", JSON.stringify(s));
+                } catch (e) {}
+            }
+            function preview10(text) {
+                var t = String(text == null ? "" : text);
+                return t.length > 10 ? t.slice(0, 10) + "…" : t;
+            }
+
+            function ensureMyId() {
+                if (myId) return Promise.resolve(myId);
+                if (!myIdPromise) {
+                    myIdPromise = DB.getProfile()
+                        .then(function (p) { myId = p && p.id; return myId; })
+                        .catch(function () { return null; });
+                }
+                return myIdPromise;
+            }
+
+            /* Subscribe FIRST — before any network call — so realtime events
+               are never dropped while the profile request is in flight. */
+            function init() {
+                console.info("[player] messages: init");
+                DB.onMessage(function (m) { handleIncoming(m); });
+                DB.onRealtime(function () {});
+                ready = true;
+                startPoll();
+                ensureMyId().then(function (id) {
+                    console.info("[player] messages: signed in as", id || "(no profile yet)");
+                });
+            }
+
+            /* --- Poll fallback: if the realtime socket ever drops (sleep,
+               network hiccup), a light sweep still surfaces new messages --- */
+            var pollBaseline = Date.now();
+            var pollBusy = false;
+            async function sweep() {
+                if (pollBusy || document.visibilityState !== "visible") return;
+                pollBusy = true;
+                try {
+                    var uid = await ensureMyId();
+                    var candidates = [];
+                    try {
+                        var dms = await DB.getDmList();
+                        if (Array.isArray(dms)) { dmsCache = dms; candidates = candidates.concat(dms.filter(d => d && d.convId).map(d => ({ convId: d.convId, type: "dm", title: (d.other && d.other.username) || "User", avatar: d.other && d.other.avatar, senderId: d.other && d.other.id, last: d.last }))); }
+                    } catch (e) {}
+                    try {
+                        var gs = await DB.getGroups();
+                        if (Array.isArray(gs)) { groupsCache = gs; candidates = candidates.concat(gs.filter(g => g && g.id).map(g => ({ convId: g.id, type: "group", title: g.name || "Group", avatar: g.avatar, senderId: null, last: g.last }))); }
+                    } catch (e) {}
+                    for (var i = 0; i < candidates.length; i++) {
+                        var c = candidates[i];
+                        var last = c.last;
+                        if (!last || !last.ts) continue;
+                        if (last.ts <= pollBaseline) continue;          // only messages since this page loaded
+                        if (uid && last.senderId === uid) continue;     // own messages
+                        if (last.type && last.type !== "text") continue;
+                        if (pill.hidden === false) continue;            // one pill at a time
+                        var seen = readSeen();
+                        if (Number(seen[c.convId] || 0) >= last.ts) continue;
+                        if (c.type === "dm") {
+                            if (hasId("msg-blocked-v1", last.senderId)) continue;
+                            if (hasId("msg-muted-v1", last.senderId)) continue;
+                        } else if (hasId("msg-muted-v1", c.convId)) {
+                            continue;
+                        }
+                        console.info("[player] sweep surfaced message:", c.convId);
+                        showPill(c, last);
+                        break;
+                    }
+                } catch (e) {}
+                pollBusy = false;
+            }
+            function startPoll() {
+                /* Realtime is the primary path; this sweep only recovers from a
+               dropped socket, so every five minutes is plenty. At one minute
+               it re-fetched the whole DM/group list per game tab, all night. */
+            setInterval(sweep, 300000);
+                document.addEventListener("visibilitychange", function () {
+                    if (document.visibilityState === "visible") sweep();
+                });
+                window.addEventListener("focus", sweep);
+            }
+
+            async function resolveConv(convId) {
+                if (!dmsCache) {
+                    try { dmsCache = await DB.getDmList(); } catch (e) { dmsCache = []; }
+                }
+                var dm = (dmsCache || []).find(function (d) { return d && d.convId === convId; });
+                if (dm) {
+                    return { convId: convId, type: "dm", title: (dm.other && dm.other.username) || "User", avatar: dm.other && dm.other.avatar, senderId: dm.other && dm.other.id };
+                }
+                if (!groupsCache) {
+                    try { groupsCache = await DB.getGroups(); } catch (e) { groupsCache = []; }
+                }
+                var g = (groupsCache || []).find(function (x) { return x && x.id === convId; });
+                if (g) {
+                    return { convId: convId, type: "group", title: g.name || "Group", avatar: g.avatar, senderId: null };
+                }
+                return null;
+            }
+
+            function avatarContent(info, senderName) {
+                var av = info && info.avatar;
+                var src = av && av.type === "image" ? av.value : null;
+                if (src) return '<img src="' + esc(src) + '" alt=""/>';
+                var color = (av && av.color) || "#22c55e";
+                var letter = String(info && info.title || senderName || "?").trim().charAt(0).toUpperCase() || "?";
+                return '<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;background:' + esc(color) + ';color:#fff">' + esc(letter) + "</span>";
+            }
+
+            function showPill(info, msg) {
+                pillInfo = info;
+                pillAvatar.innerHTML = avatarContent(info, "");
+                pillName.textContent = info.title || "Message";
+                pillPreview.textContent = preview10(msg.content);
+                pill.hidden = false;
+                pill.classList.remove("leaving");
+                pill.style.transform = "translateY(0)";
+                clearTimeout(pillTimer);
+                pillTimer = setTimeout(dismissPill, 6500);
+            }
+
+            function dismissPill(fromSwipe) {
+                clearTimeout(pillTimer);
+                pill.classList.add("leaving");
+                setTimeout(function () {
+                    pill.hidden = true;
+                    pill.classList.remove("leaving");
+                    pill.style.transform = "";
+                }, 250);
+            }
+
+            async function handleIncoming(m) {
+                if (!ready || !m || !m.convId) return;
+                console.info("[player] realtime message:", m.convId, m.content);
+                var uid = await ensureMyId();
+                if (uid && m.senderId === uid) return;
+                if (m.type && m.type !== "text") return; // invites/system stay in-app
+                if (floatConv === m.convId) {
+                    await refreshFloat(true);
+                    return;
+                }
+                var info = await resolveConv(m.convId);
+                console.info("[player] resolved conversation:", info ? (info.type + " " + info.title) : "(not found)");
+                if (!info) return;
+                if (info.type === "dm") {
+                    if (hasId("msg-blocked-v1", m.senderId)) return;
+                    if (hasId("msg-muted-v1", m.senderId)) return;
+                } else if (hasId("msg-muted-v1", info.convId)) {
+                    return;
+                }
+                showPill(info, m);
+            }
+
+            /* --- Pill swipe (vertical only) --- */
+            var swiping = false, swipeStartY = 0, swipeDy = 0, swipeMoved = false;
+            pill.addEventListener("pointerdown", function (e) {
+                if (e.target.closest(".msg-pill-open")) return;
+                swiping = true;
+                swipeMoved = false;
+                swipeStartY = e.clientY;
+                swipeDy = 0;
+                pill.style.transition = "none";
+                try { pill.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+            pill.addEventListener("pointermove", function (e) {
+                if (!swiping) return;
+                swipeDy = e.clientY - swipeStartY; // vertical only
+                if (Math.abs(swipeDy) > 6) swipeMoved = true;
+                pill.style.transform = "translateY(" + swipeDy + "px)";
+            });
+            function endSwipe() {
+                if (!swiping) return;
+                swiping = false;
+                if (Math.abs(swipeDy) > 70) {
+                    dismissPill(true); // keep the offset while it fades out
+                } else {
+                    pill.style.transition = "transform .25s ease";
+                    pill.style.transform = "translateY(0)";
+                }
+            }
+            pill.addEventListener("pointerup", endSwipe);
+            pill.addEventListener("pointercancel", endSwipe);
+            // click on the pill body (without swiping) also opens the chat
+            pill.addEventListener("click", function (e) {
+                if (e.target.closest(".msg-pill-open")) return;
+                if (swipeMoved) { swipeMoved = false; return; }
+                if (pillInfo) openFloat(pillInfo.convId, pillInfo);
+            });
+            pillOpen.addEventListener("click", function () {
+                if (pillInfo) openFloat(pillInfo.convId, pillInfo);
+            });
+
+            /* --- Floating chat window --- */
+            async function openFloat(convId, info) {
+                if (!convId) return;
+                floatConv = convId;
+                floatTitle.textContent = (info && info.title) || "Chat";
+                floatEl.hidden = false;
+                dismissPill();
+                floatBody.innerHTML = '<div class="msg-float-note">Loading…</div>';
+                var isBlockedDm = info && info.type === "dm" && hasId("msg-blocked-v1", mSenderIdOf(info));
+                setComposeDisabled(isBlockedDm);
+                if (isBlockedDm) {
+                    floatBody.innerHTML = '<div class="msg-float-note">You blocked this user.</div>';
+                    return;
+                }
+                await refreshFloat(false);
+                if (floatInput) floatInput.focus();
+            }
+            function mSenderIdOf(info) {
+                return info && info.senderId ? info.senderId : "";
+            }
+            function setComposeDisabled(disabled) {
+                floatInput.disabled = disabled;
+                floatSend.disabled = disabled;
+            }
+            async function refreshFloat(markNew) {
+                if (!floatConv) return;
+                var msgs = [];
+                try { msgs = await DB.getMessages(floatConv); } catch (e) { msgs = []; }
+                if (!Array.isArray(msgs)) msgs = [];
+                if (!msgs.length) {
+                    floatBody.innerHTML = '<div class="msg-float-note">No messages yet. Say hi!</div>';
+                    return;
+                }
+                floatBody.innerHTML = msgs.map(function (m) {
+                    var mine = myId && m.senderId === myId;
+                    return '<div class="msg-float-row' + (mine ? " me" : "") + '">' +
+                        '<div class="msg-float-bubble">' + esc(m.content || "") + "</div>" +
+                    "</div>";
+                }).join("");
+                floatBody.scrollTop = floatBody.scrollHeight;
+                if (markNew !== false) markSeen(floatConv, msgs[msgs.length - 1].ts || Date.now());
+            }
+
+            floatCompose.addEventListener("submit", async function (e) {
+                e.preventDefault();
+                if (!floatConv || floatInput.disabled) return;
+                var text = floatInput.value.trim();
+                if (!text) return;
+                floatInput.value = "";
+                try {
+                    await DB.sendMessage(floatConv, text);
+                    await refreshFloat(true);
+                } catch (err) {
+                    console.warn("[player] send", err);
+                    floatInput.value = text;
+                }
+            });
+            document.getElementById("msg-float-close").addEventListener("click", function () {
+                floatEl.hidden = true;
+                floatConv = null;
+            });
+
+            /* --- Window dragging (by the header) --- */
+            var winDrag = false, winStartX = 0, winStartY = 0, winBaseLeft = 0, winBaseTop = 0;
+            var head = document.getElementById("msg-float-head");
+            head.addEventListener("pointerdown", function (e) {
+                if (e.target.closest(".msg-float-close")) return;
+                winDrag = true;
+                winStartX = e.clientX;
+                winStartY = e.clientY;
+                var r = floatEl.getBoundingClientRect();
+                winBaseLeft = r.left;
+                winBaseTop = r.top;
+                floatEl.style.right = "auto";
+                floatEl.style.left = r.left + "px";
+                floatEl.style.top = r.top + "px";
+                try { head.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+            head.addEventListener("pointermove", function (e) {
+                if (!winDrag) return;
+                var dx = e.clientX - winStartX;
+                var dy = e.clientY - winStartY;
+                var w = floatEl.offsetWidth;
+                var maxLeft = window.innerWidth - 80;
+                var minLeft = -(w - 80);
+                var maxTop = window.innerHeight - 46;
+                floatEl.style.left = Math.max(minLeft, Math.min(winBaseLeft + dx, maxLeft)) + "px";
+                floatEl.style.top = Math.max(0, Math.min(winBaseTop + dy, maxTop)) + "px";
+            });
+            function endWinDrag() { winDrag = false; }
+            head.addEventListener("pointerup", endWinDrag);
+            head.addEventListener("pointercancel", endWinDrag);
+
+            init();
+        })();
+    </script>
+    <script>
+        /* Incoming call while a game is playing: a pill at the top with
+           accept/decline. Accepting answers inside this tab through the
+           hidden call host (toolbox.js), so the game stays on screen and the
+           call runs in the pill; declining marks the row and logs it in the
+           DM. */
+        (function () {
+            if (!window.DB) return;
+            var PHONE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8.04253 9.89057L8.32962 9.54607C9.13196 8.58326 9.53312 8.10186 9.67708 7.56536C9.79932 7.10976 9.79165 6.62904 9.65494 6.17757C9.49394 5.64593 9.07762 5.17757 8.24498 4.24085C7.64122 3.56162 7.33933 3.222 6.97835 3.09096C6.67272 2.98002 6.33952 2.97023 6.0279 3.06303C5.65985 3.17264 5.33854 3.49395 4.69593 4.13656L3.87514 4.95736C3.42449 5.408 3.19917 5.63332 3.08405 5.94695C2.96892 6.26057 2.99192 6.54106 3.03791 7.10204C3.64253 14.477 9.52318 20.3577 16.8981 20.9623C17.4591 21.0083 17.7396 21.0313 18.0532 20.9161C18.3669 20.801 18.5922 20.5757 19.0428 20.125L19.8636 19.3043C20.5062 18.6616 20.8275 18.3403 20.9371 17.9723C21.03 17.6607 21.0202 17.3275 20.9092 17.0218C20.7782 16.6608 20.4386 16.359 19.7593 15.7552C18.8226 14.9226 18.3542 14.5062 17.8226 14.3452C17.3711 14.2085 16.8904 14.2009 16.4348 14.3231C15.8983 14.4671 15.4169 14.8682 14.4541 15.6706L14.1096 15.9577C11.2048 14.9894 9.00786 12.7866 8.04253 9.89057Z"></path></svg>';
+            var overlay = null, currentId = null, currentCaller = null, ringTimer = null;
+
+            function myId() {
+                /* "rcdn_profile" is a legacy key nothing writes; the signed-in id lives in social.v1 (what db.js uses too), so falling back to it is what lets the ring match this browser's user. */
+                try { var own = (JSON.parse(localStorage.getItem("rcdn_profile") || "null") || {}).id; if (own) return own; } catch (e) {}
+                try { var prof = (JSON.parse(localStorage.getItem("social.v1") || "null") || {}).profile; if (prof && prof.id) return prof.id; } catch (e) {}
+                return null;
+            }
+            function avatarOf(p) {
+                var pic = null;
+                if (p && p.avatarPath && DB.avatarUrl) pic = DB.avatarUrl(p.avatarPath);
+                if (!pic && p && p.avatar && p.avatar.type === "image") pic = p.avatar.value || p.avatar.data || p.avatar.url || null;
+                if (pic) return '<img src="' + pic + '" alt="">';
+                var a = (p && p.avatar) || {};
+                var bg = (a.accent || a.color) || "#444";
+                var letter = ((p && p.username) || "U").charAt(0).toUpperCase();
+                return '<span class="call-ring-fallback" style="background:' + bg + '">' + letter + '</span>';
+            }
+            function ensure() {
+                if (overlay) return overlay;
+                overlay = document.createElement("div");
+                overlay.className = "call-ring";
+                overlay.hidden = true;
+                overlay.innerHTML = '<div class="call-ring-card">' +
+                    '<div class="call-ring-av"></div>' +
+                    '<div class="call-ring-info">' +
+                    '<div class="call-ring-name"></div>' +
+                    '<div class="call-ring-sub">Incoming call</div>' +
+                    '</div>' +
+                    '<div class="call-ring-actions">' +
+                    '<button class="call-ring-btn decline" type="button" aria-label="Decline">' + PHONE_SVG + '</button>' +
+                    '<button class="call-ring-btn accept" type="button" aria-label="Accept">' + PHONE_SVG + '</button>' +
+                    '</div></div>';
+                document.body.appendChild(overlay);
+                overlay.querySelector(".accept").addEventListener("click", function () {
+                    if (!currentId) return;
+                    var id = currentId;
+                    dismiss();
+                    /* answer inside this tab: the hidden call host picks the
+                       request up, so the game keeps the screen */
+                    if (window.phantomCallAnswer && window.phantomCallAnswer(id)) return;
+                    try { sessionStorage.setItem("rcdn-answer-call", id); } catch (e) {}
+                    location.href = "index.html?view=calls";
+                });
+                overlay.querySelector(".decline").addEventListener("click", function () {
+                    if (!currentId) return;
+                    var id = currentId, caller = currentCaller;
+                    dismiss();
+                    if (DB.updateCall) DB.updateCall(id, { status: "declined" });
+                    logDeclined(caller);
+                });
+                return overlay;
+            }
+            function logDeclined(callerId) {
+                if (!callerId || !DB.ensureDm || !DB.sendMessage) return;
+                DB.ensureDm(callerId).then(function (conv) {
+                    return DB.sendMessage(conv && (conv.id || conv.convId), "declined a call");
+                }).catch(function (e) {});
+            }
+            function offer(c, peer) {
+                if (currentId) return;
+                currentId = c.id;
+                currentCaller = c.callerId;
+                var o = ensure();
+                o.querySelector(".call-ring-name").textContent = (peer && peer.username) || "User";
+                o.querySelector(".call-ring-av").innerHTML = avatarOf(peer);
+                o.hidden = false;
+                ringTimer = setTimeout(dismiss, 30000);
+            }
+            function dismiss() {
+                if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
+                currentId = null;
+                currentCaller = null;
+                if (overlay) overlay.hidden = true;
+            }
+            if (DB.onIncomingCall) {
+                DB.onIncomingCall(function (c) {
+                    if (!c) return;
+                    var me = myId();
+                    if (c.calleeId === me && c.callerId !== me) {
+                        if (c.status === "ringing") {
+                            DB.getProfileById(c.callerId).then(function (p) { offer(c, p); }).catch(function () { offer(c, null); });
+                        } else if (c.id === currentId) {
+                            dismiss();
+                        }
+                    }
+                });
+            }
+            setInterval(function () {
+                if (currentId || !DB.getActiveIncomingCall) return;
+                if (DB._callsRt === "subscribed") return;
+                DB.getActiveIncomingCall().then(function (c) {
+                    if (c && !currentId && c.calleeId === myId() && c.status === "ringing") {
+                        DB.getProfileById(c.callerId).then(function (p) { offer(c, p); }).catch(function () { offer(c, null); });
+                    }
+                }).catch(function () {});
+            }, 8000);
+        })();
+    </script>
+</body>
+</html>

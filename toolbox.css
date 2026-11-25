@@ -345,38 +345,38 @@
 }
 #fps-counter.on { display: flex; }
 
-/* Incoming-call ring overlay (player page) */
+/* Incoming-call pill (player page): a bar at the top with the same shape as
+   the in-call card, so a call never covers the game. */
 .call-ring {
   position: fixed;
-  inset: 0;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 400;
-  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
-  justify-content: center;
+  padding: 8px 10px 8px 12px;
+  border-radius: 999px;
+  background: rgba(18, 18, 22, 0.86);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 44px -20px rgba(0, 0, 0, 0.85);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 .call-ring[hidden] { display: none; }
-.call-ring-card {
-  width: min(320px, 86vw);
-  background: #1d1d21;
-  color: #e5e7eb;
-  border-radius: 22px;
-  padding: 26px 30px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-}
-.call-ring-av .call-ring-fallback, .call-ring-av img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; }
-.call-ring-name { font-weight: 700; font-size: 18px; margin-top: 6px; }
-.call-ring-sub { font-size: 13px; opacity: 0.6; margin-bottom: 10px; }
-.call-ring-actions { display: flex; gap: 14px; }
+.call-ring-card { display: flex; align-items: center; gap: 12px; }
+.call-ring-av { flex: none; display: flex; align-items: center; }
+.call-ring-av img, .call-ring-av .call-ring-fallback { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
+.call-ring-info { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.call-ring-name { font-size: 12px; font-weight: 700; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.call-ring-sub { font-size: 11px; opacity: 0.7; white-space: nowrap; }
+.call-ring-actions { display: flex; gap: 6px; }
 .call-ring-btn {
-  width: 56px;
-  height: 56px;
+  width: 34px;
+  height: 34px;
   flex: none;
+  padding: 0;
   border: none;
   border-radius: 50%;
   display: inline-flex;
@@ -389,10 +389,12 @@
 .call-ring-btn.accept { background: #22c55e; color: #fff; }
 .call-ring-btn.decline { background: #ef4444; color: #fff; }
 .call-ring-btn.decline svg { transform: rotate(135deg); }
+.call-ring-btn svg { width: 18px; height: 18px; }
 .call-ring-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 700;
+  font-size: 14px;
 }

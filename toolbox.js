@@ -556,7 +556,11 @@
   /* The call itself lives in the app page. When a game takes over this tab that
      page is gone, so we host it in a hidden iframe: it rejoins from the saved
      call session and the pill's buttons drive it through the same commands. */
+  /* Answering from the player page: the host iframe does the answering, and
+     this flag keeps the host alive until the call session shows up. */
+  var answerPending = false;
   function hasSession() {
+    if (answerPending) return true;
     try { return !!sessionStorage.getItem("rcdn-call-session"); } catch (e) { return false; }
   }
   function ensureHost() {
@@ -573,8 +577,25 @@
     var f = document.getElementById("call-host");
     if (f && f.parentNode) f.parentNode.removeChild(f);
   }
+  /* Called by the player page's incoming-call pill. index.html reads
+     "rcdn-answer-call" when it loads, so answering here keeps the game on
+     screen and the call runs in the pill above it. */
+  window.phantomCallAnswer = function (callId) {
+    if (!callId) return false;
+    answerPending = true;
+    try { sessionStorage.setItem("rcdn-answer-call", String(callId)); } catch (e) {}
+    try { ensureHost(); } catch (e) {}
+    render();
+    setTimeout(function () { answerPending = false; render(); }, 20000);
+    return true;
+  };
   function render() {
     if (!el) return;
+    /* once the host has written the call session, the answer is no longer
+       pending: the 20s safety timeout must not drop a call that started */
+    if (answerPending) {
+      try { if (sessionStorage.getItem("rcdn-call-session")) answerPending = false; } catch (e) {}
+    }
     var st = read();
     var people = (st && st.people) || [];
     var fresh = people.length > 0 && (Date.now() - (st.updatedAt || 0) < STALE_MS);
